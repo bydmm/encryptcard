@@ -9,6 +9,9 @@ import (
 	"time"
 )
 
+// 难度系数
+const hard int = 4
+
 // CardBlock is a good block
 // {
 // 	"pubkey": "1ccfce1ed647ec3b12c398f4791a1adb3285cfff85ce7d382362c321a1a1df2",
@@ -26,6 +29,12 @@ type CardBlock struct {
 	Signature  string
 }
 
+type Card struct {
+	id      int
+	attack  int
+	defense int
+}
+
 // 时间戳
 func timestamp() string {
 	timestamp := time.Now().UnixNano()
@@ -41,8 +50,6 @@ func randNumber() string {
 
 // 判定是否为卡的函数
 func findCard(hashCard [32]byte) string {
-	// 难度系数
-	hard := 4
 	// 获取卡的hash值
 	card := hex.EncodeToString(hashCard[:])
 	// 截取这个卡的最后几位
@@ -67,7 +74,7 @@ func findCard(hashCard [32]byte) string {
 	return card
 }
 
-func (card CardBlock) build() string {
+func (card *CardBlock) build() string {
 	card.Timestamp = timestamp()
 	card.RandNumber = randNumber()
 	// 使用用户公钥，时间戳以及随机数作为种子
@@ -83,4 +90,28 @@ func (card CardBlock) build() string {
 		return string(json)
 	}
 	return ""
+}
+
+func (card CardBlock) cut(from int, to int) string {
+	return string(card.CardID[len(card.CardID)+from : len(card.CardID)+to])
+}
+
+func (card CardBlock) cid() (int, error) {
+	raw := card.cut(-7, -4)
+	p1, error := strconv.Atoi(raw[0:1])
+	p2, error := strconv.Atoi(raw[1:2])
+	p3, error := strconv.Atoi(raw[2:3])
+	return p1 + p2 + p3, error
+}
+
+func (card CardBlock) card() (Card, error) {
+	id, error := card.cid()
+	attack, error := strconv.Atoi(card.cut(-4, -2))
+	defense, error := strconv.Atoi(card.cut(-2, 0))
+	c := Card{
+		id:      id,
+		attack:  attack,
+		defense: defense,
+	}
+	return c, error
 }
