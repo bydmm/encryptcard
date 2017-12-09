@@ -1,16 +1,22 @@
 package main
 
 import (
+	"crypto"
+	crand "crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"math/rand"
+	"os"
 	"strconv"
 	"time"
 )
 
 // 难度系数
 const hard int = 4
+const version = "v0.0.1"
 
 // CardBlock is a good block
 // {
@@ -22,13 +28,16 @@ const hard int = 4
 // 	"owner": "1ccfce1ed647ec3b12c398f4791a1adb3285cfff85ce7d382362c321a1a1df2"
 //   }
 type CardBlock struct {
+	Version    string
 	PubKey     string
 	Timestamp  string
 	RandNumber string
+	Hard       string
 	CardID     string
 	Signature  string
 }
 
+// Card is CardBlock helper
 type Card struct {
 	id      int
 	attack  int
@@ -74,7 +83,38 @@ func findCard(hashCard [32]byte) string {
 	return card
 }
 
-func (card *CardBlock) build() string {
+func (card *CardBlock) sign(key *rsa.PrivateKey) string {
+	m := card.Version + card.PubKey + card.Timestamp + card.RandNumber +
+		card.Hard + card.CardID
+	message := []byte(m)
+
+	// Only small messages can be signed directly; thus the hash of a
+	// message, rather than the message itself, is signed. This requires
+	// that the hash function be collision resistant. SHA-256 is the
+	// least-strong hash function that should be used for this at the time
+	// of writing (2016).
+	hashed := sha256.Sum256(message)
+
+	signature, err := rsa.SignPKCS1v15(crand.Reader, key, crypto.SHA256, hashed[:])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error from signing: %s\n", err)
+	}
+
+	s := hex.EncodeToString(signature)
+
+	// try to VerifyPKCS1v15
+	ss, err := hex.DecodeString(s)
+	err = rsa.VerifyPKCS1v15(&key.PublicKey, crypto.SHA256, hashed[:], ss)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error from verification: %s\n", err)
+	}
+
+	return s
+}
+
+func (card *CardBlock) build() {
+	card.Version = version
+	card.Hard = strconv.Itoa(hard)
 	card.Timestamp = timestamp()
 	card.RandNumber = randNumber()
 	// 使用用户公钥，时间戳以及随机数作为种子
@@ -82,14 +122,12 @@ func (card *CardBlock) build() string {
 	// 去生成一个hash值，这里使用sha256这个比较公允的算法
 	rawOre := sha256.Sum256([]byte(key))
 	// 根据规则去判断hash是否是一张卡
-	cardHash := findCard(rawOre)
+	card.CardID = findCard(rawOre)
+}
 
-	if cardHash != "" {
-		card.CardID = cardHash
-		json, _ := json.Marshal(card)
-		return string(json)
-	}
-	return ""
+func (card *CardBlock) json() string {
+	json, _ := json.Marshal(card)
+	return string(json)
 }
 
 func (card CardBlock) cut(from int, to int) string {
