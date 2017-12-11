@@ -1,46 +1,14 @@
 package main
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
-	"encoding/asn1"
-	"encoding/pem"
 	"fmt"
 	"os"
 	"time"
 )
 
-func generateRSAKeys() *rsa.PrivateKey {
-	reader := rand.Reader
-	bitSize := 2048
-
-	key, err := rsa.GenerateKey(reader, bitSize)
-	checkError(err)
-	return key
-}
-
-func pubKey(key *rsa.PrivateKey) string {
-	asn1Bytes, err := asn1.Marshal(key.PublicKey)
-	checkError(err)
-	data := &pem.Block{
-		Type:  "PUBLIC KEY",
-		Bytes: asn1Bytes,
-	}
-
-	return string(pem.EncodeToMemory(data))
-}
-
-func checkError(err error) {
-	if err != nil {
-		fmt.Println("Fatal error ", err.Error())
-		os.Exit(1)
-	}
-}
-
 func main() {
-	// 用户公钥
-
-	key := generateRSAKeys()
+	// 用户钥匙对
+	key := getKeyPair()
 
 	user := pubKey(key)
 	// 使用算力工作证明无限抽卡

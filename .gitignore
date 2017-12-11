@@ -1,3 +1,4 @@
 encryptcard
 .DS_Store
 saves/*.json
+*.pem

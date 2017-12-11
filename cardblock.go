@@ -15,7 +15,7 @@ import (
 )
 
 // 难度系数
-const hard int = 4
+const hard int = 3
 const version = "v0.0.1"
 
 // CardBlock is a good block
@@ -118,7 +118,8 @@ func (card *CardBlock) build() {
 	card.Timestamp = timestamp()
 	card.RandNumber = randNumber()
 	// 使用用户公钥，时间戳以及随机数作为种子
-	key := card.PubKey + card.Timestamp + card.RandNumber
+	key := card.Version + card.PubKey + card.Timestamp + card.RandNumber + card.Hard
+
 	// 去生成一个hash值，这里使用sha256这个比较公允的算法
 	rawOre := sha256.Sum256([]byte(key))
 	// 根据规则去判断hash是否是一张卡
