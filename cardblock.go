@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"os"
 	"strconv"
@@ -15,18 +16,10 @@ import (
 )
 
 // 难度系数
-const hard int = 4
+const hard int = 3
 const version = "v0.0.1"
 
 // CardBlock is a good block
-// {
-// 	"pubkey": "1ccfce1ed647ec3b12c398f4791a1adb3285cfff85ce7d382362c321a1a1df2",
-// 	"timestamp": 1974545345345,
-// 	"randNumber": 6653,
-// 	"cardBlock": "15c9c6c3afb2b2ff612c5ea37b563c50dac4e95d7a93695bc5d6800000009004",
-// 	"signature": "dsfsdf34515c9c6c3afb2b2ff612c5ea37b563c50dac4e95d7a93695bc5d6800",
-// 	"owner": "1ccfce1ed647ec3b12c398f4791a1adb3285cfff85ce7d382362c321a1a1df2"
-//   }
 type CardBlock struct {
 	Version    string
 	PubKey     string
@@ -110,6 +103,62 @@ func (card *CardBlock) sign(key *rsa.PrivateKey) string {
 	}
 
 	return s
+}
+
+// 验证卡片id，也就是验证区块是不是真的
+func (card *CardBlock) verifyCardID() bool {
+	key := card.Version + card.PubKey + card.Timestamp + card.RandNumber + card.Hard
+
+	rawOre := sha256.Sum256([]byte(key))
+
+	if card.CardID != findCard(rawOre) {
+		fmt.Fprintf(os.Stderr, "CardID验证失败，你可能是一张假卡")
+		return false
+	}
+	return true
+}
+
+// 验证签名
+func (card *CardBlock) verifySign() bool {
+	m := card.Version + card.PubKey + card.Timestamp + card.RandNumber +
+		card.Hard + card.CardID
+	message := []byte(m)
+
+	hashed := sha256.Sum256(message)
+
+	// try to VerifyPKCS1v15
+	ss, err := hex.DecodeString(card.Signature)
+
+	key, err := loadPublicKeyFromString(card.PubKey)
+
+	err = rsa.VerifyPKCS1v15(key, crypto.SHA256, hashed[:], ss)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error from verification: %s\n", err)
+		return false
+	}
+
+	return true
+}
+
+// 验证是否为真卡
+func (card *CardBlock) verify() bool {
+	return card.verifySign() && card.verifyCardID()
+}
+
+// 去读卡片json
+func loadCard(filePath string) CardBlock {
+	raw, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
+	var card CardBlock
+	if err := json.Unmarshal(raw, &card); err != nil {
+		panic(err)
+	}
+
+	return card
 }
 
 func (card *CardBlock) build() {

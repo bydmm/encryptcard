@@ -1,12 +1,13 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"time"
 )
 
-func main() {
+func start() {
 	// 用户钥匙对
 	key := getKeyPair()
 
@@ -35,4 +36,21 @@ func main() {
 		// 交出控制权，不然卡死cpu了。
 		time.Sleep(1)
 	}
+}
+
+func main() {
+	verifyPath := flag.String("v", "", "验证卡片json文件")
+	flag.Parse()
+
+	// 验证card文件
+	if *verifyPath != "" {
+		fmt.Printf("校验: %s\n", *verifyPath)
+		card := loadCard(*verifyPath)
+		if card.verify() {
+			fmt.Printf("校验成功\n")
+		}
+		os.Exit(1)
+	}
+
+	start()
 }

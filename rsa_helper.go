@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/asn1"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
@@ -22,18 +21,18 @@ func getKeyPair() *rsa.PrivateKey {
 	key, err := getKeyPairFromDisk()
 	if err != nil {
 		reader := bufio.NewReader(os.Stdin)
-		fmt.Print("Could not find keys, input Y to create a new one [N]: ")
+		fmt.Print("找不到密钥对, 输入 [YES!] 创建密钥对 [N]: ")
 		text, _ := reader.ReadString('\n')
 		text = strings.TrimRight(text, "\r\n")
-		if strings.ToUpper(text) == "Y" {
+		if strings.ToUpper(text) == "Yes" {
 			return generateRSAKeys()
 		}
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		checkError(err)
 	}
 	return key
 }
 
-// 从磁盘获得公钥，这段代码有bug！
+// 从磁盘读公钥
 func loadPublicKeyFromDisk() (*rsa.PublicKey, error) {
 	raw, err := ioutil.ReadFile(publicPath)
 	if err != nil {
@@ -41,7 +40,28 @@ func loadPublicKeyFromDisk() (*rsa.PublicKey, error) {
 	}
 
 	block, _ := pem.Decode(raw)
-	if block == nil || block.Type != "PUBLIC KEY" {
+	if block == nil || block.Type != "RSA PUBLIC KEY" {
+		log.Fatal("failed to decode PEM block containing public key")
+	}
+
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	switch pub := pub.(type) {
+	case *rsa.PublicKey:
+		// fmt.Printf("Got a %T, with remaining data: %q", pub, rest)
+		return pub, nil
+	default:
+		panic("unknown type of public key")
+	}
+}
+
+// 从string读公钥
+func loadPublicKeyFromString(key string) (*rsa.PublicKey, error) {
+	block, _ := pem.Decode([]byte(key))
+	if block == nil || block.Type != "RSA PUBLIC KEY" {
 		log.Fatal("failed to decode PEM block containing public key")
 	}
 
@@ -78,13 +98,13 @@ func loadPrivateKeyFromDisk() (*rsa.PrivateKey, error) {
 
 // 从磁盘获得钥匙的对象。实际上只读私钥就行了
 func getKeyPairFromDisk() (*rsa.PrivateKey, error) {
-	// pubKey, err := loadPublicKeyFromDisk()
-	// if pubKey == nil && err != nil {
-	// 	return nil, err
-	// }
+	pubKey, err := loadPublicKeyFromDisk()
+	if pubKey == nil && err != nil {
+		return nil, fmt.Errorf("Failed to find %s", publicPath)
+	}
 	privateKey, err := loadPrivateKeyFromDisk()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Failed to find %s", privatePath)
 	}
 	// privateKey.PublicKey = *pubKey
 	return privateKey, nil
@@ -104,32 +124,28 @@ func generateRSAKeys() *rsa.PrivateKey {
 
 // 返回公钥的string，要填写在区块用的
 func pubKey(key *rsa.PrivateKey) string {
-	asn1Bytes, err := asn1.Marshal(key.PublicKey)
+	PubASN1, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
 	checkError(err)
-	data := &pem.Block{
-		Type:  "PUBLIC KEY",
-		Bytes: asn1Bytes,
-	}
 
-	return string(pem.EncodeToMemory(data))
+	pubBytes := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PUBLIC KEY",
+		Bytes: PubASN1,
+	})
+
+	return string(pubBytes)
 }
 
 // 把公钥存盘
 func savePublicPEMKey(fileName string, pubkey rsa.PublicKey) {
-	asn1Bytes, err := asn1.Marshal(pubkey)
+	PubASN1, err := x509.MarshalPKIXPublicKey(&pubkey)
 	checkError(err)
 
-	var pemkey = &pem.Block{
-		Type:  "PUBLIC KEY",
-		Bytes: asn1Bytes,
-	}
+	pubBytes := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PUBLIC KEY",
+		Bytes: PubASN1,
+	})
 
-	pemfile, err := os.Create(fileName)
-	checkError(err)
-	defer pemfile.Close()
-
-	err = pem.Encode(pemfile, pemkey)
-	checkError(err)
+	ioutil.WriteFile(fileName, pubBytes, 0644)
 }
 
 // 把私钥存盘
@@ -139,7 +155,7 @@ func savePEMKey(fileName string, key *rsa.PrivateKey) {
 	defer outFile.Close()
 
 	var privateKey = &pem.Block{
-		Type:  "PRIVATE KEY",
+		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(key),
 	}
 
