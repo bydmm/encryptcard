@@ -3,11 +3,39 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"os"
+	"path/filepath"
 	"time"
 )
 
+// 抽卡动画
+func animation() {
+	files, err := filepath.Glob("./animation/*.txt")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, file := range files {
+		raw, err := ioutil.ReadFile(file)
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
+		fmt.Printf("\033[0;0H")
+		fmt.Printf("%s", raw)
+		time.Sleep(10000)
+	}
+}
+
+func initGame() {
+	fmt.Printf("---------------------------\n")
+	os.Mkdir("./saves", 644)
+}
+
 func start() {
+	initGame()
 	// 用户钥匙对
 	key := getKeyPair()
 
@@ -20,6 +48,7 @@ func start() {
 			block.Signature = block.sign(key)
 			card, err := block.card()
 			if err == nil {
+				animation()
 				fmt.Printf("---------------------------\n")
 				fmt.Printf("id: %d\n", card.id)
 				fmt.Printf("attack: %d\n", card.attack)
@@ -38,17 +67,20 @@ func start() {
 	}
 }
 
+func verifyCard(verifyPath *string) {
+	// 验证card文件
+	fmt.Printf("校验: %s\n", *verifyPath)
+	card := loadCard(*verifyPath)
+	if card.verify() {
+		fmt.Printf("校验成功\n")
+	}
+}
+
 func main() {
 	verifyPath := flag.String("v", "", "验证卡片json文件")
 	flag.Parse()
-
-	// 验证card文件
 	if *verifyPath != "" {
-		fmt.Printf("校验: %s\n", *verifyPath)
-		card := loadCard(*verifyPath)
-		if card.verify() {
-			fmt.Printf("校验成功\n")
-		}
+		verifyCard(verifyPath)
 		os.Exit(1)
 	}
 

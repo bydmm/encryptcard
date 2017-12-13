@@ -16,7 +16,7 @@ import (
 )
 
 // 难度系数
-const hard int = 3
+const hard int = 4
 const version = "v0.0.1"
 
 // CardBlock is a good block

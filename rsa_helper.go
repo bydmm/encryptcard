@@ -21,10 +21,10 @@ func getKeyPair() *rsa.PrivateKey {
 	key, err := getKeyPairFromDisk()
 	if err != nil {
 		reader := bufio.NewReader(os.Stdin)
-		fmt.Print("找不到密钥对, 输入 [YES!] 创建密钥对 [N]: ")
+		fmt.Print("找不到密钥对, 输入 [Y] 创建密钥对 [N]: ")
 		text, _ := reader.ReadString('\n')
 		text = strings.TrimRight(text, "\r\n")
-		if strings.ToUpper(text) == "Yes" {
+		if strings.ToUpper(text) == "Y" {
 			return generateRSAKeys()
 		}
 		checkError(err)
