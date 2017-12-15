@@ -10,6 +10,10 @@
 
 PS: 看看代码你就会明白，其实工作证明也是有运气的成分的。即使是比特币，只要你特别欧洲，你也是有概率用普通电脑几分钟就挖到的。只是这个概率嘛。。。。
 
+## 项目地址
+
+https://github.com/bydmm/encryptcard
+
 ## 下载地址
 
 新版本都会发布在releases里的：https://github.com/bydmm/encryptcard/releases
