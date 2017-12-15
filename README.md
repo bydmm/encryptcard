@@ -149,3 +149,15 @@ ownerPubkey + cardBlock = 验证函数(pubkey, signature)
 由于这个项目只是区块，不是链，也没有全局分布式账本，所以一张卡只允许交易一次了。。
 
 因为第二次交易这张卡，很明显需要第一个用户的私钥，那不太现实。。。
+
+## 鸣谢
+
+动画生成：
+
+https://github.com/pjobson/movie2ascii
+
+本项目可以将视频转为字符（用到了jp2a+ffmpge)
+
+https://github.com/jteeuwen/go-bindata
+
+本项目可以把资源文件，也就是动画，作为二进制资源打包到项目里
