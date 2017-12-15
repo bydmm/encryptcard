@@ -1,7 +1,6 @@
 # Encryptcard - 区块娘
 
-使用区块链的计算力工作证明去挖SRR，会产生怎么样的火花?
-
+使用区块链的计算力工作证明去挖SSR，会产生怎么样的火花?
 
 ![](https://image.iqing.in/show.gif)
 
