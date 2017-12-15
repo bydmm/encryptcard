@@ -3,35 +3,53 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
-	"log"
 	"os"
-	"path/filepath"
+	"os/exec"
+	"sort"
 	"time"
 )
 
+func clearScreen() {
+	fmt.Printf("\033[2J\033[0;0H")
+}
+
+func hideCursor() {
+	fmt.Printf("\033[?25l")
+}
+
+func showCursor() {
+	fmt.Printf("\033[?25h")
+}
+
+func say(word string) {
+	cmd := exec.Command("say", word)
+	if err := cmd.Run(); err != nil {
+
+	}
+}
+
 // 抽卡动画
 func animation() {
-	files, err := filepath.Glob("./animation/*.txt")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for _, file := range files {
-		raw, err := ioutil.ReadFile(file)
+	clearScreen()
+	hideCursor()
+	assets := AssetNames()
+	sort.Strings(assets)
+	for _, file := range assets {
+		raw, err := Asset(file)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}
-		fmt.Printf("\033[0;0H")
 		fmt.Printf("%s", raw)
-		time.Sleep(10000)
+		time.Sleep(10000000)
+		fmt.Printf("\033[0;0H")
 	}
+	showCursor()
 }
 
 func initGame() {
-	fmt.Printf("---------------------------\n")
-	os.Mkdir("./saves", 644)
+	clearScreen()
+	os.Mkdir("./saves", 0755)
 }
 
 func start() {
@@ -49,7 +67,7 @@ func start() {
 			card, err := block.card()
 			if err == nil {
 				animation()
-				fmt.Printf("---------------------------\n")
+				clearScreen()
 				fmt.Printf("id: %d\n", card.id)
 				fmt.Printf("attack: %d\n", card.attack)
 				fmt.Printf("defense: %d\n", card.defense)
@@ -59,6 +77,12 @@ func start() {
 				f.WriteString(block.json())
 				if err != nil {
 					panic(err)
+				}
+				c, ok := CardPrototypes[card.id]
+				if ok {
+
+					fmt.Printf("%s: %s\n", c.name, c.Lines)
+					say(c.Lines)
 				}
 			}
 		}

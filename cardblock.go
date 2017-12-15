@@ -16,7 +16,7 @@ import (
 )
 
 // 难度系数
-const hard int = 4
+const hard int = 3
 const version = "v0.0.1"
 
 // CardBlock is a good block
@@ -69,7 +69,7 @@ func findCard(hashCard [32]byte) string {
 
 	// 满足hard个0后，还要是个数字，否则匹配不到卡的id
 	i, err := strconv.ParseInt(last, 10, 32)
-	if err != nil || i == 0 {
+	if err != nil || (i == 0 && last != "000") {
 		return ""
 	}
 
