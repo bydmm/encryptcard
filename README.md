@@ -1,4 +1,4 @@
-# encryptcard - 区块娘
+# Encryptcard - 区块娘
 
 使用区块链的计算力工作证明去挖SRR，会产生怎么样的火花?
 
