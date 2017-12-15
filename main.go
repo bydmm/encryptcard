@@ -132,15 +132,19 @@ func start(sound bool, concurrency int) {
 	// 用户钥匙对
 	key := getKeyPair()
 	user := pubKey(key)
+	runtime.GOMAXPROCS(concurrency)
 	for true {
-		runtime.GOMAXPROCS(concurrency)
-		var wg sync.WaitGroup
-		wg.Add(1)
-		// 使用算力工作证明无限抽卡
-		go func() {
-			digging(key, user, sound)
-			defer wg.Done()
-		}()
+		wg := &sync.WaitGroup{}
+		// 开启并发模式
+		for i := 0; i < concurrency; i++ {
+			wg.Add(1)
+			go func(wg *sync.WaitGroup, i int) {
+				// 使用算力工作证明无限抽卡
+				digging(key, user, sound)
+				defer wg.Done()
+			}(wg, i)
+		}
+
 		// 交出控制权，不然卡死cpu了。
 		wg.Wait()
 	}
