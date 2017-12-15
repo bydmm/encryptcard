@@ -21,6 +21,8 @@ https://github.com/bydmm/encryptcard
 
 新版本都会发布在releases里的：https://github.com/bydmm/encryptcard/releases
 
+windows请使用Powershell启动程序，否则看不到动画
+
 ## 项目进度
 
 * 计算力工作证明 ✓
