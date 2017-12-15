@@ -22,10 +22,10 @@ const version = "v0.0.1"
 // CardBlock is a good block
 type CardBlock struct {
 	Version    string
+	Hard       string
 	PubKey     string
 	Timestamp  string
 	RandNumber string
-	Hard       string
 	CardID     string
 	Signature  string
 }

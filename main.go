@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -48,11 +50,44 @@ func animation() {
 }
 
 func initGame() {
-	clearScreen()
 	os.Mkdir("./saves", 0755)
 }
 
-func start() {
+func startScreen() {
+	clearScreen()
+	fmt.Printf("\n")
+	fmt.Printf("\n")
+	fmt.Printf("* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *\n")
+	fmt.Printf("*                                                                                             *\n")
+	fmt.Printf("*         __________________                                                                  *\n")
+	fmt.Printf("*        |     ☆ ☆ ★ ☆ ☆    |                                                                 *\n")
+	fmt.Printf("*        |                  |                                                                 *\n")
+	fmt.Printf("*        |     1 1  2 2 2   |          EncryptCard                                            *\n")
+	fmt.Printf("*        |    1  1     2    |                                                                 *\n")
+	fmt.Printf("*        |   1 1 1    2     |          v0.0.1                                                 *\n")
+	fmt.Printf("*        |       1   2      |                                                                 *\n")
+	fmt.Printf("*        |       1  2 2 2   |          Use Proof-of-Work digging card                         *\n")
+	fmt.Printf("*        |                  |          with Distributed Game Archives System                  *\n")
+	fmt.Printf("*        |       Answer     |                                                                 *\n")
+	fmt.Printf("*        |                  |          Project: https://github.com/bydmm/encryptcard          *\n")
+	fmt.Printf("*        |   A T K   D E F  |                                                                 *\n")
+	fmt.Printf("*        |    9 9     9 9   |                                                                 *\n")
+	fmt.Printf("*        |__________________|                                                                 *\n")
+	fmt.Printf("*                                                                                             *\n")
+	fmt.Printf("*                                                                                             *\n")
+	fmt.Printf("* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *\n")
+}
+
+func openSound() bool {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("[此功能仅对OSX有效]开启声音？ 输入[Y]确认: ")
+	text, _ := reader.ReadString('\n')
+	text = strings.TrimRight(text, "\r\n")
+	return strings.ToUpper(text) == "Y"
+}
+
+func start(sound bool) {
+	startScreen()
 	initGame()
 	// 用户钥匙对
 	key := getKeyPair()
@@ -80,9 +115,10 @@ func start() {
 				}
 				c, ok := CardPrototypes[card.id]
 				if ok {
-
 					fmt.Printf("%s: %s\n", c.name, c.Lines)
-					say(c.Lines)
+					if sound {
+						say(c.Lines)
+					}
 				}
 			}
 		}
@@ -108,5 +144,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	start()
+	sound := openSound()
+	start(sound)
 }
