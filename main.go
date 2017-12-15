@@ -10,7 +10,6 @@ import (
 	"runtime"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -120,9 +119,11 @@ func digging(key *rsa.PrivateKey, user string, sound bool) {
 	block.build()
 	if block.CardID != "" {
 		whenFindCard(key, block, sound)
-	} else {
-		fmt.Printf("努力挖掘中......\r")
 	}
+}
+
+func hardWord() {
+
 }
 
 func start(sound bool, concurrency int) {
@@ -132,23 +133,21 @@ func start(sound bool, concurrency int) {
 	// 用户钥匙对
 	key := getKeyPair()
 	user := pubKey(key)
+	// start := time.Now().UnixNano()
 	runtime.GOMAXPROCS(concurrency)
-	for true {
-		wg := &sync.WaitGroup{}
-		// 开启并发模式
-		for i := 0; i < concurrency; i++ {
-			wg.Add(1)
-			go func(wg *sync.WaitGroup, i int) {
+	// chann := make(chan int, 100000000)
+	for index := 0; index < concurrency; index++ {
+		go func() {
+			for {
 				// 使用算力工作证明无限抽卡
 				digging(key, user, sound)
-				defer wg.Done()
-			}(wg, i)
-		}
-
-		// 交出控制权，不然卡死cpu了。
-		wg.Wait()
+				// chann <- 1
+				// speed := int(time.Now().UnixNano()-start) / len(chann)
+				// fmt.Printf("%d Block per second\n", speed)
+			}
+		}()
 	}
-
+	select {}
 }
 
 func verifyCard(verifyPath *string) {
@@ -162,7 +161,7 @@ func verifyCard(verifyPath *string) {
 
 func main() {
 	verifyPath := flag.String("v", "", "验证卡片json文件")
-	concurrency := flag.Int("c", runtime.NumCPU(), "并发数，默认为cpu数")
+	concurrency := flag.Int("c", 1, "并发数，默认为1, 不建议超过CPU数")
 	flag.Parse()
 	if *verifyPath != "" {
 		verifyCard(verifyPath)
