@@ -56,7 +56,7 @@ func initGame() {
 	os.Mkdir("./saves", 0755)
 }
 
-func startScreen() {
+func startScreen(sound bool, concurrency int) {
 	clearScreen()
 	fmt.Printf("\n")
 	fmt.Printf("\n")
@@ -75,7 +75,7 @@ func startScreen() {
 	fmt.Printf("*        |                  |          Project: https://github.com/bydmm/encryptcard          *\n")
 	fmt.Printf("*        |   A T K   D E F  |                                                                 *\n")
 	fmt.Printf("*        |    9 9     9 9   |                                                                 *\n")
-	fmt.Printf("*        |__________________|                                                                 *\n")
+	fmt.Printf("*        |__________________|          Concurrency: %d                                         *\n", concurrency)
 	fmt.Printf("*                                                                                             *\n")
 	fmt.Printf("*                                                                                             *\n")
 	fmt.Printf("* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *\n")
@@ -125,17 +125,15 @@ func digging(key *rsa.PrivateKey, user string, sound bool) {
 	}
 }
 
-func start(sound bool) {
-	startScreen()
+func start(sound bool, concurrency int) {
+	startScreen(sound, concurrency)
 	initGame()
 	time.Sleep(2000000000)
 	// 用户钥匙对
 	key := getKeyPair()
 	user := pubKey(key)
-
 	for true {
-		// digging(key, user, sound)
-		runtime.GOMAXPROCS(runtime.NumCPU())
+		runtime.GOMAXPROCS(concurrency)
 		var wg sync.WaitGroup
 		wg.Add(1)
 		// 使用算力工作证明无限抽卡
@@ -160,6 +158,7 @@ func verifyCard(verifyPath *string) {
 
 func main() {
 	verifyPath := flag.String("v", "", "验证卡片json文件")
+	concurrency := flag.Int("c", runtime.NumCPU(), "并发数，默认为cpu数")
 	flag.Parse()
 	if *verifyPath != "" {
 		verifyCard(verifyPath)
@@ -167,5 +166,5 @@ func main() {
 	}
 
 	sound := openSound()
-	start(sound)
+	start(sound, *concurrency)
 }
