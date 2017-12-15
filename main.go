@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"flag"
 	"fmt"
+	"math/rand"
 	"os"
 	"os/exec"
 	"runtime"
@@ -52,6 +53,9 @@ func animation() {
 }
 
 func initGame() {
+	// 初始化种子
+	rand.Seed(time.Now().UnixNano())
+	// 创建文件夹
 	os.Mkdir("./saves", 0755)
 }
 
@@ -120,10 +124,6 @@ func digging(key *rsa.PrivateKey, user string, sound bool) {
 	if block.CardID != "" {
 		whenFindCard(key, block, sound)
 	}
-}
-
-func hardWord() {
-
 }
 
 func start(sound bool, concurrency int) {

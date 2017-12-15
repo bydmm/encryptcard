@@ -45,9 +45,7 @@ func timestamp() string {
 
 // 随机数
 func randNumber() string {
-	s := rand.NewSource(time.Now().UnixNano())
-	r := rand.New(s)
-	return strconv.Itoa(r.Intn(1000))
+	return strconv.Itoa(rand.Intn(1000))
 }
 
 // 判定是否为卡的函数
