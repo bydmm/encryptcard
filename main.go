@@ -89,6 +89,7 @@ func openSound() bool {
 func start(sound bool) {
 	startScreen()
 	initGame()
+	time.Sleep(2000000000)
 	// 用户钥匙对
 	key := getKeyPair()
 
