@@ -14,6 +14,8 @@ import (
 	"time"
 )
 
+var blockCount = 0
+
 func clearScreen() {
 	fmt.Printf("\033[2J\033[0;0H")
 }
@@ -96,6 +98,7 @@ func whenFindCard(key *rsa.PrivateKey, block CardBlock, sound bool) {
 	block.Signature = block.sign(key)
 	card, err := block.card()
 	if err == nil {
+		blockCount = 0
 		animation()
 		clearScreen()
 		fmt.Printf("id: %d\n", card.id)
@@ -133,17 +136,15 @@ func start(sound bool, concurrency int) {
 	// 用户钥匙对
 	key := getKeyPair()
 	user := pubKey(key)
-	// start := time.Now().UnixNano()
 	runtime.GOMAXPROCS(concurrency)
-	// chann := make(chan int, 100000000)
 	for index := 0; index < concurrency; index++ {
 		go func() {
 			for {
 				// 使用算力工作证明无限抽卡
 				digging(key, user, sound)
-				// chann <- 1
-				// speed := int(time.Now().UnixNano()-start) / len(chann)
-				// fmt.Printf("%d Block per second\n", speed)
+				blockCount++
+				fmt.Printf("%d Blocks\r", blockCount)
+				hideCursor()
 			}
 		}()
 	}
