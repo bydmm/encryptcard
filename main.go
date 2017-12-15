@@ -2,12 +2,15 @@ package main
 
 import (
 	"bufio"
+	"crypto/rsa"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -86,48 +89,64 @@ func openSound() bool {
 	return strings.ToUpper(text) == "Y"
 }
 
+func whenFindCard(key *rsa.PrivateKey, block CardBlock, sound bool) {
+	block.Signature = block.sign(key)
+	card, err := block.card()
+	if err == nil {
+		animation()
+		clearScreen()
+		fmt.Printf("id: %d\n", card.id)
+		fmt.Printf("attack: %d\n", card.attack)
+		fmt.Printf("defense: %d\n", card.defense)
+		path := fmt.Sprintf("./saves/%d_%d_%d.json", card.id, card.attack, card.defense)
+		fmt.Printf("save to :%s\n", path)
+		f, err := os.Create(path)
+		f.WriteString(block.json())
+		if err != nil {
+			panic(err)
+		}
+		c, ok := CardPrototypes[card.id]
+		if ok {
+			fmt.Printf("%s: %s\n", c.name, c.Lines)
+			if sound {
+				say(c.Lines)
+			}
+		}
+	}
+}
+
+func digging(key *rsa.PrivateKey, user string, sound bool) {
+	block := CardBlock{PubKey: user}
+	block.build()
+	if block.CardID != "" {
+		whenFindCard(key, block, sound)
+	} else {
+		fmt.Printf("努力挖掘中......\r")
+	}
+}
+
 func start(sound bool) {
 	startScreen()
 	initGame()
 	time.Sleep(2000000000)
 	// 用户钥匙对
 	key := getKeyPair()
-
 	user := pubKey(key)
-	// 使用算力工作证明无限抽卡
+
 	for true {
-		block := CardBlock{PubKey: user}
-		block.build()
-		if block.CardID != "" {
-			block.Signature = block.sign(key)
-			card, err := block.card()
-			if err == nil {
-				animation()
-				clearScreen()
-				fmt.Printf("id: %d\n", card.id)
-				fmt.Printf("attack: %d\n", card.attack)
-				fmt.Printf("defense: %d\n", card.defense)
-				path := fmt.Sprintf("./saves/%d_%d_%d.json", card.id, card.attack, card.defense)
-				fmt.Printf("save to :%s\n", path)
-				f, err := os.Create(path)
-				f.WriteString(block.json())
-				if err != nil {
-					panic(err)
-				}
-				c, ok := CardPrototypes[card.id]
-				if ok {
-					fmt.Printf("%s: %s\n", c.name, c.Lines)
-					if sound {
-						say(c.Lines)
-					}
-				}
-			}
-		} else {
-			fmt.Printf("努力挖掘中......\r")
-		}
+		// digging(key, user, sound)
+		runtime.GOMAXPROCS(runtime.NumCPU())
+		var wg sync.WaitGroup
+		wg.Add(1)
+		// 使用算力工作证明无限抽卡
+		go func() {
+			digging(key, user, sound)
+			defer wg.Done()
+		}()
 		// 交出控制权，不然卡死cpu了。
-		time.Sleep(0)
+		wg.Wait()
 	}
+
 }
 
 func verifyCard(verifyPath *string) {

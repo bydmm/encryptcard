@@ -16,8 +16,8 @@ var CardPrototypes = map[int]CardPrototype{
 	0:  CardPrototype{ID: 0, name: "Zero", Lines: "我是开始，我是结束，我是阿赖耶，我是真理之门，我是一切的根源，我，是Zero", rarity: 5},
 	27: CardPrototype{ID: 27, name: "42", Lines: "宇宙的奥秘，从此揭开", rarity: 5},
 
-	1:  CardPrototype{ID: 1, name: "新桓结衣", Lines: "我不是你的老婆", rarity: 3},
-	26: CardPrototype{ID: 26, name: "樱宁宁", Lines: "CPP又崩溃啦", rarity: 3},
+	1:  CardPrototype{ID: 1, name: "新桓结衣", Lines: "我不是你的老婆", rarity: 4},
+	26: CardPrototype{ID: 26, name: "樱宁宁", Lines: "CPP又崩溃啦", rarity: 4},
 
 	2: CardPrototype{ID: 2, name: "《计算机程序的构造和解释》(SICP)", Lines: "做完我的习题，再说你读过", rarity: 4},
 	3: CardPrototype{ID: 3, name: "《黑客与画家》", Lines: "先实现一门语言，然后再开始实现功能。", rarity: 4},
