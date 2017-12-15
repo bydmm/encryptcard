@@ -122,9 +122,11 @@ func start(sound bool) {
 					}
 				}
 			}
+		} else {
+			fmt.Printf("努力挖掘中......\r")
 		}
 		// 交出控制权，不然卡死cpu了。
-		time.Sleep(1)
+		time.Sleep(0)
 	}
 }
 
