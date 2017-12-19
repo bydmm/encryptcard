@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package cardproto;
+
+
+message CardBlockFetch
+{
+    string CardID = 1;
+}
+
+
+message CardBlockDig
+{
+    string Version = 1;
+    string Hard = 2;
+    string PubKey = 3;
+    string Timestamp = 4;
+    string RandNumber = 5;
+    string PrevCardID = 6;
+}
+
+message CardBlockReceive
+{
+    string Version = 1;
+    string Hard = 2;
+    string PubKey = 3;
+    string Timestamp = 4;
+    string RandNumber = 5;
+    string PrevCardID = 6;
+}
