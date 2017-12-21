@@ -32,11 +32,6 @@ message CardBlockPushRequest
     CardBlock CardBlock = 1;
 }
 
-message CardBlockReceive
-{
-    CardBlock CardBlock = 1;
-}
-
 message CardBlock
 {
     string Version = 1;

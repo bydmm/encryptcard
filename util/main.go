@@ -27,8 +27,8 @@ func NewCardBlockChain() *share.CardBlockChain {
 
 // 初始化区块链
 func main() {
-	// cardChain := NewCardBlockChain()
-	// share.Store(cardChain, ChainPath)
+	cardChain := NewCardBlockChain()
+	share.Store(cardChain, ChainPath)
 
 	var cardChainRead share.CardBlockChain
 	share.Load(&cardChainRead, ChainPath)

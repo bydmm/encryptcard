@@ -33,3 +33,10 @@ func Load(data interface{}, filename string) {
 		panic(err)
 	}
 }
+
+// LoadCardBlockChainFromDisk 从文件读取历史区块
+func LoadCardBlockChainFromDisk(path string) *CardBlockChain {
+	var cardChainRead CardBlockChain
+	Load(&cardChainRead, path)
+	return &cardChainRead
+}

@@ -48,13 +48,6 @@ func MessageToBlock(msg cardproto.CardBlockPushRequest) *share.CardBlock {
 	}
 }
 
-// LoadCardBlockChainFromDisk 从文件读取历史区块
-func LoadCardBlockChainFromDisk() *share.CardBlockChain {
-	var cardChainRead *share.CardBlockChain
-	share.Load(cardChainRead, ChainPath)
-	return cardChainRead
-}
-
 // AddBlockToChain 向链条加块
 func AddBlockToChain(block *share.CardBlock) {
 	cardblockChain.Cardblocks = append(cardblockChain.Cardblocks, block)
@@ -63,9 +56,8 @@ func AddBlockToChain(block *share.CardBlock) {
 // 初始化区块链
 func initChain() {
 	log.Infof("从磁盘读取区块链....\n")
-	cardblockChain = LoadCardBlockChainFromDisk()
+	cardblockChain = share.LoadCardBlockChainFromDisk(ChainPath)
 	log.Infof("区块链读取完成....\n")
-	log.Infof("区块高度: %d\n", len(cardblockChain.Cardblocks))
 	log.Infof("区块高度: %d\n", len(cardblockChain.Cardblocks))
 }
 
