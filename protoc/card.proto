@@ -24,7 +24,8 @@ message CardBlocksFetchRequest
 message CardBlockFetchResponse
 {
     bool Valid = 1;
-    repeated CardBlock CardBlocks = 2;
+    bool Finish = 2;
+    repeated CardBlock CardBlocks = 3;
 }
 
 message CardBlockPushRequest

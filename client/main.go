@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"crypto/rsa"
+	"encryptcard/protoc/cardproto"
 	"encryptcard/share"
 	"flag"
 	"fmt"
@@ -63,8 +64,8 @@ func initGame() {
 	runtime.GOMAXPROCS(maxConcurrency)
 
 	// 屏蔽socket层的调试日志
-	golog.SetLevelByString("cellnet", "error")
-	golog.SetLevelByString("main", "error")
+	// golog.SetLevelByString("cellnet", "error")
+	// golog.SetLevelByString("main", "error")
 
 	// 初始化区块
 	initChain()
@@ -80,27 +81,6 @@ func openSound() bool {
 	text, _ := reader.ReadString('\n')
 	text = strings.TrimRight(text, "\r\n")
 	return strings.ToUpper(text) == "Y"
-}
-
-func saveBlock(block share.CardBlock) {
-	path := fmt.Sprintf("./saves/%s.json", block.CardID())
-	fmt.Printf("save to :%s\n", path)
-	f, err := os.Create(path)
-	f.WriteString(block.JSON())
-	if err != nil {
-		panic(err)
-	}
-}
-
-func showCardInfo(block share.CardBlock) {
-	card, err := block.Card()
-	if err != nil {
-		log.Infof("error card: %d\n", block.CardID())
-	}
-	log.Infof("CardBlockReceive: %s\n", block.CardID())
-	log.Infof("id: %d\n", card.ID)
-	log.Infof("attack: %d\n", card.Attack)
-	log.Infof("defense: %d\n", card.Defense)
 }
 
 // 当挖到卡后
@@ -119,6 +99,63 @@ func whenFindCard(block share.CardBlock, sound bool) {
 	}
 }
 
+// SyncBlocks 与服务器同步区块
+func SyncBlocks(queue cellnet.EventQueue, peer cellnet.Peer, ev *cellnet.Event) {
+	if cardblockChain.Cardblocks == nil {
+		log.Infof("本地无区块缓存...从创始区块开始同步\n")
+		RequestCardBlocksFetch(peer, 0)
+	} else {
+		height := cardblockChain.Height()
+		log.Infof("本地高度%d, 请求与服务器同步\n", height)
+		RequestCardBlockSync(peer, cardblockChain.Height(), cardblockChain.HeadBlock().CardID())
+	}
+
+	// 检查与服务器同步的状态
+	CardBlockSyncResponse(peer, func(msg *cardproto.CardBlockSyncResponse) {
+		if msg.Valid {
+			height := cardblockChain.Height()
+			if msg.Height > height {
+				RequestCardBlocksFetch(peer, height)
+			} else {
+
+			}
+		} else {
+			log.Fatalf("与主链失去同步, 建议删除本地区块再试...\n")
+		}
+	})
+
+	// 从服务器获取区块
+	CardBlockFetchResponse(peer, func(msg *cardproto.CardBlockFetchResponse) {
+		if msg.Valid {
+			// 确认还在链上
+			for index := 0; index < len(msg.CardBlocks); index++ {
+				remoteBlock := MessageToBlock(*msg.CardBlocks[index])
+				if remoteBlock.PrevCardID == cardblockChain.HeadBlock().CardID() {
+					cardblockChain.Cardblocks = append(cardblockChain.Cardblocks, remoteBlock)
+				} else {
+					log.Fatalf("似乎出现了线程不安全的情况...\n")
+				}
+			}
+			if msg.Finish {
+				// 开挖
+			} else {
+				// 继续同步
+				height := cardblockChain.Height()
+				RequestCardBlocksFetch(peer, height)
+			}
+		} else {
+			log.Fatalf("与主链失去同步, 建议删除本地区块再试...\n")
+		}
+	})
+}
+
+// AfterConnect 当连接到服务器之后
+func AfterConnect(queue cellnet.EventQueue, peer cellnet.Peer, ev *cellnet.Event) {
+	//与服务器同步区块
+	SyncBlocks(queue, peer, ev)
+
+}
+
 // Start 开始主程序
 func Start() {
 	startScreen()
@@ -130,6 +167,7 @@ func Start() {
 	StartClient(func(queue cellnet.EventQueue, peer cellnet.Peer, ev *cellnet.Event, success bool) {
 		if success {
 			log.Infof("成功与服务器建立链接...\n")
+			AfterConnect(queue, peer, ev)
 		} else {
 			log.Errorf("与服务器断开...\n")
 		}

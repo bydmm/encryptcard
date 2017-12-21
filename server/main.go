@@ -102,6 +102,7 @@ func CardBlocksFetchRequest(peer cellnet.Peer) {
 		msg := ev.Msg.(*cardproto.CardBlocksFetchRequest)
 
 		valid := false
+		finish := false
 		var msgBlocks []*cardproto.CardBlock
 
 		// 判断区块高度是否正确
@@ -119,10 +120,14 @@ func CardBlocksFetchRequest(peer cellnet.Peer) {
 				msgBlocks = append(msgBlocks, BlockToMessage(msgBlock))
 				index++
 			}
+
+			// 判断是否是最后
+			finish = (CurrentHeight == cardblockChain.Height())
 		}
 
 		res := cardproto.CardBlockFetchResponse{
 			Valid:      valid,
+			Finish:     finish,
 			CardBlocks: msgBlocks,
 		}
 

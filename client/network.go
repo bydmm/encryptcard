@@ -8,6 +8,18 @@ import (
 	"github.com/davyxu/cellnet/socket"
 )
 
+// MessageToBlock 从消息到区块
+func MessageToBlock(msg cardproto.CardBlock) *share.CardBlock {
+	return &share.CardBlock{
+		Version:    msg.Version,
+		Hard:       msg.Hard,
+		PubKey:     msg.PubKey,
+		Timestamp:  msg.Timestamp,
+		RandNumber: msg.RandNumber,
+		PrevCardID: msg.PrevCardID,
+	}
+}
+
 // BlockToMessage 从区块到消息
 func BlockToMessage(block *share.CardBlock) *cardproto.CardBlock {
 	return &cardproto.CardBlock{
@@ -61,9 +73,9 @@ func RequestCardBlocksFetch(peer cellnet.Peer, height int64) {
 }
 
 // CardBlockFetchResponse 从服务器获得区块
-func CardBlockFetchResponse(peer cellnet.Peer, userCallback func(*cardproto.CardBlockSyncResponse)) {
+func CardBlockFetchResponse(peer cellnet.Peer, userCallback func(*cardproto.CardBlockFetchResponse)) {
 	cellnet.RegisterMessage(peer, "cardproto.CardBlockFetchResponse", func(ev *cellnet.Event) {
-		msg := ev.Msg.(*cardproto.CardBlockSyncResponse)
+		msg := ev.Msg.(*cardproto.CardBlockFetchResponse)
 		userCallback(msg)
 	})
 }
