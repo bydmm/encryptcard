@@ -1,6 +1,7 @@
 package share
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -15,14 +16,15 @@ import (
 // 难度系数
 const version = "v0.2.0"
 
-// CardBlock is a good block
+// CardBlock 卡区块
 type CardBlock struct {
 	Version    string
-	Hard       string
+	Hard       int32
 	PubKey     string
-	Timestamp  string
-	RandNumber string
+	Timestamp  int64
+	RandNumber int32
 	PrevCardID string
+	Height     int64
 }
 
 // Card is CardBlock helper
@@ -33,15 +35,16 @@ type Card struct {
 	CardID  string
 }
 
+// strconv.Itoa(int(timestamp))
+
 // 时间戳
-func timestamp() string {
-	timestamp := time.Now().UnixNano()
-	return strconv.Itoa(int(timestamp))
+func timestamp() int64 {
+	return time.Now().UnixNano()
 }
 
 // 随机数
-func randNumber() string {
-	return strconv.Itoa(rand.Intn(1000))
+func randNumber() int32 {
+	return rand.Int31()
 }
 
 // 判定是否为卡的函数
@@ -69,34 +72,10 @@ func findCard(card string, hard int) string {
 	return card
 }
 
-// func (card *CardBlock) sign(key *rsa.PrivateKey) string {
-// 	m := card.Version + card.PubKey + card.Timestamp + card.RandNumber +
-// 		card.Hard + card.CardID
-// 	message := []byte(m)
-
-// 	// Only small messages can be signed directly; thus the hash of a
-// 	// message, rather than the message itself, is signed. This requires
-// 	// that the hash function be collision resistant. SHA-256 is the
-// 	// least-strong hash function that should be used for this at the time
-// 	// of writing (2016).
-// 	hashed := sha256.Sum256(message)
-
-// 	signature, err := rsa.SignPKCS1v15(crand.Reader, key, crypto.SHA256, hashed[:])
-// 	if err != nil {
-// 		fmt.Fprintf(os.Stderr, "Error from signing: %s\n", err)
-// 	}
-
-// 	s := hex.EncodeToString(signature)
-
-// 	// try to VerifyPKCS1v15
-// 	ss, err := hex.DecodeString(s)
-// 	err = rsa.VerifyPKCS1v15(&key.PublicKey, crypto.SHA256, hashed[:], ss)
-// 	if err != nil {
-// 		fmt.Fprintf(os.Stderr, "Error from verification: %s\n", err)
-// 	}
-
-// 	return s
-// }
+// HardInt 返回int
+func (card *CardBlock) HardInt() int {
+	return int(card.Hard)
+}
 
 // VerifyCardID 验证卡片id，也就是验证区块是不是真的
 func (card *CardBlock) VerifyCardID() bool {
@@ -106,28 +85,6 @@ func (card *CardBlock) VerifyCardID() bool {
 	}
 	return true
 }
-
-// 验证签名
-// func (card *CardBlock) verifySign() bool {
-// 	m := card.Version + card.PubKey + card.Timestamp + card.RandNumber +
-// 		card.Hard + card.CardID
-// 	message := []byte(m)
-
-// 	hashed := sha256.Sum256(message)
-
-// 	// try to VerifyPKCS1v15
-// 	ss, err := hex.DecodeString(card.Signature)
-
-// 	key, err := loadPublicKeyFromString(card.PubKey)
-
-// 	err = rsa.VerifyPKCS1v15(key, crypto.SHA256, hashed[:], ss)
-// 	if err != nil {
-// 		fmt.Fprintf(os.Stderr, "Error from verification: %s\n", err)
-// 		return false
-// 	}
-
-// 	return true
-// }
 
 // Verify 验证是否为真卡
 func (card *CardBlock) Verify() bool {
@@ -150,22 +107,20 @@ func LoadCard(filePath string) CardBlock {
 	return card
 }
 
-// HardInt Hard to int
-func (card *CardBlock) HardInt() int {
-	i, err := strconv.ParseInt(card.Hard, 10, 32)
-	if err != nil {
-		return 0
-	}
-	return int(i)
-}
-
 // CardID 获取区块的ID
 func (card *CardBlock) CardID() string {
 	// 使用用户公钥，时间戳以及随机数作为种子
-	key := card.Version + card.PubKey + card.Timestamp +
-		card.RandNumber + card.Hard + card.PrevCardID
+	key := bytes.Join([][]byte{
+		[]byte(card.Version),
+		[]byte(card.PubKey),
+		[]byte(strconv.FormatInt(card.Timestamp, 10)),
+		[]byte(strconv.FormatInt(int64(card.RandNumber), 10)),
+		[]byte(strconv.FormatInt(int64(card.Hard), 10)),
+		[]byte(card.PrevCardID),
+		[]byte(strconv.FormatInt(card.Height, 10)),
+	}, []byte{})
 	// 去生成一个hash值，这里使用sha256这个比较公允的算法
-	hashCard := sha256.Sum256([]byte(key))
+	hashCard := sha256.Sum256(key)
 	return hex.EncodeToString(hashCard[:])
 }
 
@@ -201,7 +156,6 @@ func (card CardBlock) Cid() (int, error) {
 
 // Card 分析区块包含的卡
 func (card CardBlock) Card() (Card, error) {
-	fmt.Printf("CardID: %s\n", card.CardID())
 	id, error := card.Cid()
 	attack, error := strconv.Atoi(card.Cut(-4, -2))
 	defense, error := strconv.Atoi(card.Cut(-2, 0))
@@ -212,3 +166,55 @@ func (card CardBlock) Card() (Card, error) {
 	}
 	return c, error
 }
+
+// 未来的签名验证
+// func (card *CardBlock) sign(key *rsa.PrivateKey) string {
+// 	m := card.Version + card.PubKey + card.Timestamp + card.RandNumber +
+// 		card.Hard + card.CardID
+// 	message := []byte(m)
+
+// 	// Only small messages can be signed directly; thus the hash of a
+// 	// message, rather than the message itself, is signed. This requires
+// 	// that the hash function be collision resistant. SHA-256 is the
+// 	// least-strong hash function that should be used for this at the time
+// 	// of writing (2016).
+// 	hashed := sha256.Sum256(message)
+
+// 	signature, err := rsa.SignPKCS1v15(crand.Reader, key, crypto.SHA256, hashed[:])
+// 	if err != nil {
+// 		fmt.Fprintf(os.Stderr, "Error from signing: %s\n", err)
+// 	}
+
+// 	s := hex.EncodeToString(signature)
+
+// 	// try to VerifyPKCS1v15
+// 	ss, err := hex.DecodeString(s)
+// 	err = rsa.VerifyPKCS1v15(&key.PublicKey, crypto.SHA256, hashed[:], ss)
+// 	if err != nil {
+// 		fmt.Fprintf(os.Stderr, "Error from verification: %s\n", err)
+// 	}
+
+// 	return s
+// }
+
+// 验证签名
+// func (card *CardBlock) verifySign() bool {
+// 	m := card.Version + card.PubKey + card.Timestamp + card.RandNumber +
+// 		card.Hard + card.CardID
+// 	message := []byte(m)
+
+// 	hashed := sha256.Sum256(message)
+
+// 	// try to VerifyPKCS1v15
+// 	ss, err := hex.DecodeString(card.Signature)
+
+// 	key, err := loadPublicKeyFromString(card.PubKey)
+
+// 	err = rsa.VerifyPKCS1v15(key, crypto.SHA256, hashed[:], ss)
+// 	if err != nil {
+// 		fmt.Fprintf(os.Stderr, "Error from verification: %s\n", err)
+// 		return false
+// 	}
+
+// 	return true
+// }

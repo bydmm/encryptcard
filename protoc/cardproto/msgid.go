@@ -13,8 +13,12 @@ import (
 func init() {
 
 	// card.proto
-	cellnet.RegisterMessageMeta("pb", "cardproto.CardBlockFetch", reflect.TypeOf((*CardBlockFetch)(nil)).Elem(), 72977303)
-	cellnet.RegisterMessageMeta("pb", "cardproto.CardBlockDig", reflect.TypeOf((*CardBlockDig)(nil)).Elem(), 2691297634)
+	cellnet.RegisterMessageMeta("pb", "cardproto.CardBlockSyncRequest", reflect.TypeOf((*CardBlockSyncRequest)(nil)).Elem(), 2732181857)
+	cellnet.RegisterMessageMeta("pb", "cardproto.CardBlockSyncResponse", reflect.TypeOf((*CardBlockSyncResponse)(nil)).Elem(), 931588661)
+	cellnet.RegisterMessageMeta("pb", "cardproto.CardBlocksFetchRequest", reflect.TypeOf((*CardBlocksFetchRequest)(nil)).Elem(), 2807728977)
+	cellnet.RegisterMessageMeta("pb", "cardproto.CardBlockFetchResponse", reflect.TypeOf((*CardBlockFetchResponse)(nil)).Elem(), 1679334615)
+	cellnet.RegisterMessageMeta("pb", "cardproto.CardBlockPushRequest", reflect.TypeOf((*CardBlockPushRequest)(nil)).Elem(), 2007050942)
 	cellnet.RegisterMessageMeta("pb", "cardproto.CardBlockReceive", reflect.TypeOf((*CardBlockReceive)(nil)).Elem(), 2626273397)
+	cellnet.RegisterMessageMeta("pb", "cardproto.CardBlock", reflect.TypeOf((*CardBlock)(nil)).Elem(), 1051496635)
 
 }

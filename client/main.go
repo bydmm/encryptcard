@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"encryptcard/protoc/cardproto"
 	"encryptcard/share"
 	"flag"
 	"fmt"
@@ -14,8 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davyxu/cellnet"
-	"github.com/davyxu/cellnet/socket"
 	"github.com/davyxu/golog"
 )
 
@@ -70,9 +67,11 @@ func initGame(concurrency int) {
 	rand.Seed(time.Now().UnixNano())
 	// 创建文件夹
 	os.Mkdir("./saves", 0755)
-
 	// concurrency
 	runtime.GOMAXPROCS(concurrency)
+	// 屏蔽socket层的调试日志
+	golog.SetLevelByString("cellnet", "error")
+	golog.SetLevelByString("main", "error")
 }
 
 // 开始屏幕
@@ -148,26 +147,26 @@ func whenFindCard(block share.CardBlock, sound bool) {
 	}
 }
 
-func cardBlockDig(card share.CardBlock) cardproto.CardBlockDig {
-	return cardproto.CardBlockDig{
-		Version:    card.Version,
-		Hard:       card.Hard,
-		PubKey:     card.PubKey,
-		Timestamp:  card.Timestamp,
-		RandNumber: card.RandNumber,
-		PrevCardID: card.PrevCardID,
-	}
-}
-func receiveDcardBlock(msg *cardproto.CardBlockReceive) share.CardBlock {
-	return share.CardBlock{
-		Version:    msg.Version,
-		Hard:       msg.Hard,
-		PubKey:     msg.PubKey,
-		Timestamp:  msg.Timestamp,
-		RandNumber: msg.RandNumber,
-		PrevCardID: msg.PrevCardID,
-	}
-}
+// func cardBlockDig(card share.CardBlock) cardproto.CardBlockDig {
+// 	return cardproto.CardBlockDig{
+// 		Version:    card.Version,
+// 		Hard:       card.Hard,
+// 		PubKey:     card.PubKey,
+// 		Timestamp:  card.Timestamp,
+// 		RandNumber: card.RandNumber,
+// 		PrevCardID: card.PrevCardID,
+// 	}
+// }
+// func receiveDcardBlock(msg *cardproto.CardBlockReceive) share.CardBlock {
+// 	return share.CardBlock{
+// 		Version:    msg.Version,
+// 		Hard:       msg.Hard,
+// 		PubKey:     msg.PubKey,
+// 		Timestamp:  msg.Timestamp,
+// 		RandNumber: msg.RandNumber,
+// 		PrevCardID: msg.PrevCardID,
+// 	}
+// }
 
 // 开始挖卡
 func start(sound bool, concurrency int) {
@@ -180,51 +179,47 @@ func start(sound bool, concurrency int) {
 	userPubKey := share.PubKey(key)
 	headerBlock := share.CardBlock{}
 
-	cellnet.EnableHandlerLog = false
-	queue := cellnet.NewEventQueue()
-	peer := socket.NewConnector(queue)
-	peer.Start("127.0.0.1:22366")
+	// cellnet.RegisterMessage(peer, "cardproto.CardBlockReceive", func(ev *cellnet.Event) {
+	// 	msg := ev.Msg.(*cardproto.CardBlockReceive)
+	// 	block := receiveDcardBlock(msg)
+	// 	if block.Verify() == false {
+	// 		log.Infof("假卡！？\n")
+	// 		return
+	// 	}
+	// 	headerBlock = block
+	// 	saveBlock(headerBlock)
+	// 	showCardInfo(headerBlock)
 
-	cellnet.RegisterMessage(peer, "cardproto.CardBlockReceive", func(ev *cellnet.Event) {
-		msg := ev.Msg.(*cardproto.CardBlockReceive)
-		block := receiveDcardBlock(msg)
-		if block.Verify() == false {
-			log.Infof("假卡！？\n")
-			return
-		}
-		headerBlock = block
-		saveBlock(headerBlock)
-		showCardInfo(headerBlock)
+	// 	if headerBlock.PubKey == userPubKey {
+	// 		whenFindCard(block, sound)
+	// 	}
+	// })
 
-		if headerBlock.PubKey == userPubKey {
-			whenFindCard(block, sound)
-		}
-	})
+	// cellnet.RegisterMessage(peer, "coredef.SessionConnected", func(ev *cellnet.Event) {
+	// 	log.Debugln("client connected")
+	// 	// ev.Ses.Send(&cardproto.CardBlockFetch{})
+	// })
 
-	cellnet.RegisterMessage(peer, "coredef.SessionConnected", func(ev *cellnet.Event) {
-		log.Debugln("client connected")
-		ev.Ses.Send(&cardproto.CardBlockFetch{})
-
-		// 多开几个挖卡的任务
-		for index := 0; index < concurrency; index++ {
-			go func() {
-				for {
-					if headerBlock.Version != "" {
-						// 使用算力工作证明无限抽卡
-						block := share.CardBlock{PubKey: userPubKey, Hard: "4", PrevCardID: headerBlock.CardID()}
-						CardID := block.Build()
-						if CardID != "" {
-							msg := cardBlockDig(block)
-							ev.Ses.Send(&msg)
-						}
-						blockCount++
-					} else {
-						time.Sleep(1 * time.Second)
+	// 多开几个挖卡的任务
+	for index := 0; index < concurrency; index++ {
+		go func() {
+			for {
+				// 使用算力工作证明无限抽卡
+				block := share.CardBlock{PubKey: userPubKey, Hard: 0, PrevCardID: headerBlock.CardID(), Height: 0}
+				CardID := block.Build()
+				if CardID != "" {
+					card, _ := block.Card()
+					// fmt.Printf("%d-%d-%d\n", card.ID, card.Attack, card.Defense)
+					if card.ID == 0 && card.Attack == 99 && card.Defense == 99 {
+						saveBlock(block)
 					}
+					// msg := cardBlockDig(block)
+					// ev.Ses.Send(&msg)
 				}
-			}()
-		}
-	})
+				blockCount++
+			}
+		}()
+	}
 
 	// 定时显示挖卡的速度
 	go func() {
@@ -237,10 +232,11 @@ func start(sound bool, concurrency int) {
 		}
 	}()
 
-	queue.StartLoop()
+	// queue.StartLoop()
 
-	queue.Wait()
+	// queue.Wait()
 
+	select {}
 }
 
 func main() {

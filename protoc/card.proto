@@ -2,29 +2,48 @@ syntax = "proto3";
 
 package cardproto;
 
-
-message CardBlockFetch
+message CardBlockSyncRequest
 {
-    string CardID = 1;
+    int64 Height = 1;
+    string CardID = 2;
 }
 
-
-message CardBlockDig
+message CardBlockSyncResponse
 {
-    string Version = 1;
-    string Hard = 2;
-    string PubKey = 3;
-    string Timestamp = 4;
-    string RandNumber = 5;
-    string PrevCardID = 6;
+    bool Valid = 1;
+    int64 Height = 2;
+    string CardID = 3;
+    string PrevCardID = 4;
+}
+
+message CardBlocksFetchRequest
+{
+    int64 Height = 1;
+}
+
+message CardBlockFetchResponse
+{
+    bool Valid = 1;
+    repeated CardBlock CardBlocks = 2;
+}
+
+message CardBlockPushRequest
+{
+    CardBlock CardBlock = 1;
 }
 
 message CardBlockReceive
 {
+    CardBlock CardBlock = 1;
+}
+
+message CardBlock
+{
     string Version = 1;
-    string Hard = 2;
+    int32 Hard = 2;
     string PubKey = 3;
-    string Timestamp = 4;
-    string RandNumber = 5;
+    int64 Timestamp = 4;
+    int32 RandNumber = 5;
     string PrevCardID = 6;
+    int64 Height = 7;
 }
