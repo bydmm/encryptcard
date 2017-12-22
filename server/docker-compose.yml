@@ -1,0 +1,9 @@
+version: "3"
+
+services:
+  encrypycard:
+    image: encryptcard:latest
+    ports:
+      - "22366:22366"
+    volumes:
+      - ~/encrypycard_blocks:/blocks

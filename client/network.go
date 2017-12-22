@@ -64,7 +64,7 @@ func RequestCardBlockPush(peer cellnet.Peer, cardBlock *share.CardBlock) {
 func StartClient(userCallback func(queue cellnet.EventQueue, peer cellnet.Peer, ev *cellnet.Event, success bool)) {
 	queue := cellnet.NewEventQueue()
 	peer := socket.NewConnector(queue)
-	peer.Start("127.0.0.1:22366")
+	peer.Start("0.0.0.0:22366")
 
 	queue.StartLoop()
 
