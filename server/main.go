@@ -3,6 +3,7 @@ package main
 import (
 	"encryptcard/protoc/cardproto"
 	"encryptcard/share"
+	"sync"
 
 	"github.com/davyxu/cellnet"
 	"github.com/davyxu/cellnet/socket"
@@ -16,7 +17,7 @@ const CreationBLOCKID = "0ee56b47756d5d7c04aa0270b601a04cbf25a81a06e2775432e32b8
 const ChainPath = "./blocks/cards.chain"
 
 // OnceSyncHeight 同步区块高度一次读取多少个
-const OnceSyncHeight = 20
+const OnceSyncHeight = 100
 
 // 初始化logging
 var log = golog.New("main")
@@ -24,47 +25,17 @@ var log = golog.New("main")
 // cardblockChain 内存中的区块链
 var cardblockChain *share.CardBlockChain
 
-// BlockToMessage 从区块到消息
-func BlockToMessage(block *share.CardBlock) *cardproto.CardBlock {
-	return &cardproto.CardBlock{
-		Version:    block.Version,
-		Hard:       block.Hard,
-		PubKey:     block.PubKey,
-		Timestamp:  block.Timestamp,
-		RandNumber: block.RandNumber,
-		PrevCardID: block.PrevCardID,
-	}
-}
+// 区块竞争锁
+var mutex sync.Mutex
 
-// MessageToBlock 从消息到区块
-func MessageToBlock(msg cardproto.CardBlockPushRequest) *share.CardBlock {
-	return &share.CardBlock{
-		Version:    msg.CardBlock.Version,
-		Hard:       msg.CardBlock.Hard,
-		PubKey:     msg.CardBlock.PubKey,
-		Timestamp:  msg.CardBlock.Timestamp,
-		RandNumber: msg.CardBlock.RandNumber,
-		PrevCardID: msg.CardBlock.PrevCardID,
-	}
+// SaveChainToDisk 保存区块到磁盘
+func SaveChainToDisk() {
+	share.Store(cardblockChain, ChainPath)
 }
 
 // AddBlockToChain 向链条加块
 func AddBlockToChain(block *share.CardBlock) {
 	cardblockChain.Cardblocks = append(cardblockChain.Cardblocks, block)
-}
-
-// 初始化区块链
-func initChain() {
-	log.Infof("从磁盘读取区块链....\n")
-	cardblockChain = share.LoadCardBlockChainFromDisk(ChainPath)
-	log.Infof("区块链读取完成....\n")
-	log.Infof("区块高度: %d\n", len(cardblockChain.Cardblocks))
-}
-
-// 初始化
-func initServer() {
-	// 初始化区块链
-	initChain()
 }
 
 // CardBlockSyncRequest 用户同步请求
@@ -103,26 +74,23 @@ func CardBlocksFetchRequest(peer cellnet.Peer) {
 
 		valid := false
 		finish := false
-		var msgBlocks []*cardproto.CardBlock
+		msgBlocks := []*cardproto.CardBlock{}
 
 		// 判断区块高度是否正确
 		if msg.Height <= cardblockChain.Height() {
 			valid = true
-			index := 0
-			CurrentHeight := msg.Height
-			for index < OnceSyncHeight {
-				CurrentHeight++
-				msgBlock, err := cardblockChain.BlockAtHeight(CurrentHeight)
+			for index := 0; index < OnceSyncHeight; index++ {
+				msgBlock, err := cardblockChain.BlockAtHeight(msg.Height + int64(index))
 				// 判断如果该块不存在，跳过
-				if err == nil {
-					continue
+				if err != nil {
+					break
 				}
-				msgBlocks = append(msgBlocks, BlockToMessage(msgBlock))
-				index++
+				log.Debugf("msgBlock.Height: %d", msgBlock.Height)
+				msgBlocks = append(msgBlocks, share.CardBlockToMsg(msgBlock))
 			}
-
 			// 判断是否是最后
-			finish = (CurrentHeight == cardblockChain.Height())
+			lastMsgBlock := msgBlocks[len(msgBlocks)-1]
+			finish = (lastMsgBlock.Height == cardblockChain.Height())
 		}
 
 		res := cardproto.CardBlockFetchResponse{
@@ -139,22 +107,29 @@ func CardBlocksFetchRequest(peer cellnet.Peer) {
 // CardBlockPushRequest 用户竞争上传区块
 func CardBlockPushRequest(peer cellnet.Peer) {
 	cellnet.RegisterMessage(peer, "cardproto.CardBlockPushRequest", func(ev *cellnet.Event) {
+		// 加锁
+		mutex.Lock()
+		defer mutex.Unlock()
+
 		msg := ev.Msg.(*cardproto.CardBlockPushRequest)
-		block := MessageToBlock(*msg)
+		block := share.PushProtoToBlock(msg)
 		headBlock := cardblockChain.HeadBlock()
 
-		// 不是一条链，拜拜
-		if block.PrevCardID != headBlock.CardID() {
+		if block.PrevCardID != headBlock.CardID() && block.Height != (headBlock.Height+1) {
+			log.Debugln("不是一条链，拜拜")
 			return
 		}
 
 		if block.VerifyCardID() {
+
 			//把新块加到链上
 			AddBlockToChain(block)
+			// 存盘
+			SaveChainToDisk()
 
 			// 广播给所有连接, 新快已经产生了
 			peer.VisitSession(func(ses cellnet.Session) bool {
-				ses.Send(BlockToMessage(block))
+				ses.Send(share.CardBlockToMsg(block))
 				return true
 			})
 		}
@@ -176,8 +151,24 @@ func startServer() {
 	// 接受抢占式的块提交（挖矿）
 	CardBlockPushRequest(peer)
 
+	// 定时保存区块
+
 	queue.StartLoop()
 	queue.Wait()
+}
+
+// 初始化区块链
+func initChain() {
+	log.Infof("从磁盘读取区块链....\n")
+	cardblockChain = share.LoadCardBlockChainFromDisk(ChainPath)
+	log.Infof("区块链读取完成....\n")
+	log.Infof("区块高度: %d\n", len(cardblockChain.Cardblocks))
+}
+
+// 初始化
+func initServer() {
+	// 初始化区块链
+	initChain()
 }
 
 func main() {

@@ -27,16 +27,22 @@ var log = golog.New("main")
 var blockCount = 0
 
 // cardblockChain 内存中的区块链
-var cardblockChain *share.CardBlockChain
+var cardblockChain = &share.CardBlockChain{}
 
 // userKeyPair 用户密钥对
 var userKeyPair *rsa.PrivateKey
+
+// userPubKey 用户公钥
+var userPubKey string
 
 // 并发数
 var maxConcurrency int
 
 // 启动声音
 var enableSound bool
+
+//	挖矿开关
+var doneSync = make(chan bool, 1)
 
 // 初始化区块链
 func initChain() {
@@ -64,14 +70,15 @@ func initGame() {
 	runtime.GOMAXPROCS(maxConcurrency)
 
 	// 屏蔽socket层的调试日志
-	// golog.SetLevelByString("cellnet", "error")
-	// golog.SetLevelByString("main", "error")
+	golog.SetLevelByString("cellnet", "error")
+	golog.SetLevelByString("main", "info")
 
 	// 初始化区块
 	initChain()
 
 	// 初始化密钥
 	userKeyPair = share.GetKeyPair()
+	userPubKey = share.PubKey(userKeyPair)
 }
 
 // 打开声音
@@ -84,7 +91,7 @@ func openSound() bool {
 }
 
 // 当挖到卡后
-func whenFindCard(block share.CardBlock, sound bool) {
+func whenFindCard(block *share.CardBlock, sound bool) {
 	card, err := block.Card()
 	if err == nil {
 		// animation()
@@ -99,8 +106,8 @@ func whenFindCard(block share.CardBlock, sound bool) {
 	}
 }
 
-// SyncBlocks 与服务器同步区块
-func SyncBlocks(queue cellnet.EventQueue, peer cellnet.Peer, ev *cellnet.Event) {
+// CheckSync 同步检查
+func CheckSync(peer cellnet.Peer) {
 	if cardblockChain.Cardblocks == nil {
 		log.Infof("本地无区块缓存...从创始区块开始同步\n")
 		RequestCardBlocksFetch(peer, 0)
@@ -110,38 +117,20 @@ func SyncBlocks(queue cellnet.EventQueue, peer cellnet.Peer, ev *cellnet.Event) 
 		RequestCardBlockSync(peer, cardblockChain.Height(), cardblockChain.HeadBlock().CardID())
 	}
 
+}
+
+// SyncResponse 获取同步检查的结果
+func SyncResponse(peer cellnet.Peer) {
 	// 检查与服务器同步的状态
 	CardBlockSyncResponse(peer, func(msg *cardproto.CardBlockSyncResponse) {
+		height := cardblockChain.Height()
 		if msg.Valid {
-			height := cardblockChain.Height()
 			if msg.Height > height {
-				RequestCardBlocksFetch(peer, height)
+				RequestCardBlocksFetch(peer, height+1)
 			} else {
-
-			}
-		} else {
-			log.Fatalf("与主链失去同步, 建议删除本地区块再试...\n")
-		}
-	})
-
-	// 从服务器获取区块
-	CardBlockFetchResponse(peer, func(msg *cardproto.CardBlockFetchResponse) {
-		if msg.Valid {
-			// 确认还在链上
-			for index := 0; index < len(msg.CardBlocks); index++ {
-				remoteBlock := MessageToBlock(*msg.CardBlocks[index])
-				if remoteBlock.PrevCardID == cardblockChain.HeadBlock().CardID() {
-					cardblockChain.Cardblocks = append(cardblockChain.Cardblocks, remoteBlock)
-				} else {
-					log.Fatalf("似乎出现了线程不安全的情况...\n")
-				}
-			}
-			if msg.Finish {
-				// 开挖
-			} else {
-				// 继续同步
-				height := cardblockChain.Height()
-				RequestCardBlocksFetch(peer, height)
+				// 开挖, 解除阻塞，开启挖矿
+				doneSync <- true
+				log.Infof("与主链同步完成,当前高度%d\n", height)
 			}
 		} else {
 			log.Fatalf("与主链失去同步, 建议删除本地区块再试...\n")
@@ -149,11 +138,130 @@ func SyncBlocks(queue cellnet.EventQueue, peer cellnet.Peer, ev *cellnet.Event) 
 	})
 }
 
+// FetchBlocks 从服务器获取大量区块
+func FetchBlocks(peer cellnet.Peer) {
+	CardBlockFetchResponse(peer, func(msg *cardproto.CardBlockFetchResponse) {
+		if msg.Valid {
+			log.Debugf("msg.CardBlocks count: %d", len(msg.CardBlocks))
+			// 确认还在链上
+			for index := 0; index < len(msg.CardBlocks); index++ {
+				remoteBlock := share.ProtoToBlock(msg.CardBlocks[index])
+
+				log.Debugf("remoteBlock.Height: %d", remoteBlock.Height)
+
+				// 处理创世区块同步的问题
+				if remoteBlock.Height == 0 {
+					cardblockChain.Cardblocks = []*share.CardBlock{remoteBlock}
+					continue
+				}
+
+				if remoteBlock.PrevCardID == cardblockChain.HeadBlock().CardID() {
+					cardblockChain.Cardblocks = append(cardblockChain.Cardblocks, remoteBlock)
+				} else {
+					log.Fatalf("似乎出现了线程不安全的情况...\n")
+				}
+			}
+
+			height := cardblockChain.Height()
+			if msg.Finish {
+				CheckSync(peer)
+			} else {
+				log.Infof("同步未完成..当前高度%d\n", height)
+				RequestCardBlocksFetch(peer, height+1)
+			}
+		} else {
+			log.Fatalf("与主链失去同步, 建议删除本地区块再试...\n")
+		}
+	})
+}
+
+// CardBlockMsg 从服务器获得最新区块推送
+func CardBlockMsg(peer cellnet.Peer) {
+	// 从服务器得知最新区块
+	CardBlockLiveMsg(peer, func(msg *cardproto.CardBlock) {
+		block := share.ProtoToBlock(msg)
+		//判断是否能接受这张卡
+		if block.VerifyCardID() == false {
+			log.Errorf("无法验证的区块推送: %s", block.CardID())
+			return
+		}
+		// 如果本地区块跟不上了
+		if block.Height > (cardblockChain.Height() + 1) {
+			// 启动同步检查
+			CheckSync(peer)
+			return
+		}
+
+		// 添加到本地块
+		cardblockChain.Cardblocks = append(cardblockChain.Cardblocks, block)
+
+		if block.PubKey == userPubKey {
+			go whenFindCard(block, enableSound)
+		}
+
+		log.Infof("当前区块高度: %d\n", block.Height)
+	})
+}
+
+// StoreChainToDisk
+
+// SyncBlocks 与服务器同步区块
+func SyncBlocks(queue cellnet.EventQueue, peer cellnet.Peer, ev *cellnet.Event) {
+	// 启动同步检查
+	CheckSync(peer)
+
+	// 从服务器得知同步结果
+	SyncResponse(peer)
+
+	// 从服务器获取区块
+	FetchBlocks(peer)
+
+	// 接受服务器区块推送
+	CardBlockMsg(peer)
+}
+
+// Miner 辛苦的矿工，挖挖挖
+func Miner(queue cellnet.EventQueue, peer cellnet.Peer, ev *cellnet.Event) {
+	<-doneSync
+	//等待挖矿完成
+	log.Infof("开始挖卡...\n")
+	// 根据配置启动多个挖卡够程(goroutine)
+	for index := 0; index < maxConcurrency; index++ {
+		go func() {
+			for {
+				// 使用算力工作证明无限抽卡
+				headBlock := cardblockChain.HeadBlock()
+				block := share.CardBlock{PubKey: userPubKey, Hard: 3, PrevCardID: headBlock.CardID(), Height: (headBlock.Height + 1)}
+				CardID := block.Build()
+				if CardID != "" {
+					if block.VerifyCardID() {
+						RequestCardBlockPush(peer, &block)
+					}
+				}
+				blockCount++
+			}
+		}()
+	}
+
+	// 定时显示挖卡的速度
+	go func() {
+		second := 0
+		for {
+			time.Sleep(1 * time.Second)
+			second++
+			speed := blockCount / second
+			fmt.Printf("%d Blocks in %d second (%d/s)\r", blockCount, second, speed)
+		}
+	}()
+}
+
 // AfterConnect 当连接到服务器之后
 func AfterConnect(queue cellnet.EventQueue, peer cellnet.Peer, ev *cellnet.Event) {
 	//与服务器同步区块
 	SyncBlocks(queue, peer, ev)
 
+	//挖矿子程序
+	go Miner(queue, peer, ev)
 }
 
 // Start 开始主程序
@@ -171,63 +279,7 @@ func Start() {
 		} else {
 			log.Errorf("与服务器断开...\n")
 		}
-
 	})
-
-	// cellnet.RegisterMessage(peer, "cardproto.CardBlockReceive", func(ev *cellnet.Event) {
-	// 	msg := ev.Msg.(*cardproto.CardBlockReceive)
-	// 	block := receiveDcardBlock(msg)
-	// 	if block.Verify() == false {
-	// 		log.Infof("假卡！？\n")
-	// 		return
-	// 	}
-	// 	headerBlock = block
-	// 	saveBlock(headerBlock)
-	// 	showCardInfo(headerBlock)
-
-	// 	if headerBlock.PubKey == userPubKey {
-	// 		whenFindCard(block, sound)
-	// 	}
-	// })
-
-	// 多开几个挖卡的任务
-	// for index := 0; index < maxConcurrency; index++ {
-	// 	go func() {
-	// 		for {
-	// 			// 使用算力工作证明无限抽卡
-	// 			userPubKey := share.PubKey(userKeyPair)
-	// 			block := share.CardBlock{PubKey: userPubKey, Hard: 0, PrevCardID: cardblockChain.HeadBlock().CardID(), Height: 0}
-	// 			CardID := block.Build()
-	// 			if CardID != "" {
-	// 				card, _ := block.Card()
-	// 				// fmt.Printf("%d-%d-%d\n", card.ID, card.Attack, card.Defense)
-	// 				if card.ID == 0 && card.Attack == 99 && card.Defense == 99 {
-	// 					saveBlock(block)
-	// 				}
-	// 				// msg := cardBlockDig(block)
-	// 				// ev.Ses.Send(&msg)
-	// 			}
-	// 			blockCount++
-	// 		}
-	// 	}()
-	// }
-
-	// // 定时显示挖卡的速度
-	// go func() {
-	// 	second := 0
-	// 	for {
-	// 		time.Sleep(1 * time.Second)
-	// 		second++
-	// 		speed := blockCount / second
-	// 		fmt.Printf("%d Blocks in %d second (%d/s)\r", blockCount, second, speed)
-	// 	}
-	// }()
-
-	// queue.StartLoop()
-
-	// queue.Wait()
-
-	// select {}
 }
 
 func main() {

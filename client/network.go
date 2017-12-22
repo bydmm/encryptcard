@@ -8,30 +8,6 @@ import (
 	"github.com/davyxu/cellnet/socket"
 )
 
-// MessageToBlock 从消息到区块
-func MessageToBlock(msg cardproto.CardBlock) *share.CardBlock {
-	return &share.CardBlock{
-		Version:    msg.Version,
-		Hard:       msg.Hard,
-		PubKey:     msg.PubKey,
-		Timestamp:  msg.Timestamp,
-		RandNumber: msg.RandNumber,
-		PrevCardID: msg.PrevCardID,
-	}
-}
-
-// BlockToMessage 从区块到消息
-func BlockToMessage(block *share.CardBlock) *cardproto.CardBlock {
-	return &cardproto.CardBlock{
-		Version:    block.Version,
-		Hard:       block.Hard,
-		PubKey:     block.PubKey,
-		Timestamp:  block.Timestamp,
-		RandNumber: block.RandNumber,
-		PrevCardID: block.PrevCardID,
-	}
-}
-
 // CurrentSession 获取当前session
 func CurrentSession(peer cellnet.Peer) cellnet.Session {
 	return peer.(socket.Connector).DefaultSession()
@@ -50,18 +26,6 @@ func CardBlockSyncResponse(peer cellnet.Peer, userCallback func(*cardproto.CardB
 	cellnet.RegisterMessage(peer, "cardproto.CardBlockSyncResponse", func(ev *cellnet.Event) {
 		msg := ev.Msg.(*cardproto.CardBlockSyncResponse)
 		userCallback(msg)
-		// // 判断还在不在主链之上
-		// if msg.Valid {
-		// 	block := chain.HeadBlock()
-		// 	// 如果当先就是最新块
-		// 	if msg.CardID == block.CardID() {
-		// 		// TO DO..... 大概要开始挖了
-		// 		return
-		// 	}
-		// 	// TO DO..... 大概要去同步了
-		// } else {
-		// 	log.Fatalf("抱歉，你已与主链脱节，请删除链文件重新同步\n")
-		// }
 	})
 }
 
@@ -72,10 +36,19 @@ func RequestCardBlocksFetch(peer cellnet.Peer, height int64) {
 	})
 }
 
-// CardBlockFetchResponse 从服务器获得区块
+// CardBlockFetchResponse 从服务器获得连续区块
 func CardBlockFetchResponse(peer cellnet.Peer, userCallback func(*cardproto.CardBlockFetchResponse)) {
 	cellnet.RegisterMessage(peer, "cardproto.CardBlockFetchResponse", func(ev *cellnet.Event) {
 		msg := ev.Msg.(*cardproto.CardBlockFetchResponse)
+		userCallback(msg)
+	})
+
+}
+
+// CardBlockLiveMsg 服务器推送区块
+func CardBlockLiveMsg(peer cellnet.Peer, userCallback func(*cardproto.CardBlock)) {
+	cellnet.RegisterMessage(peer, "cardproto.CardBlock", func(ev *cellnet.Event) {
+		msg := ev.Msg.(*cardproto.CardBlock)
 		userCallback(msg)
 	})
 }
@@ -83,7 +56,7 @@ func CardBlockFetchResponse(peer cellnet.Peer, userCallback func(*cardproto.Card
 // RequestCardBlockPush 把挖到的区块发给服务器
 func RequestCardBlockPush(peer cellnet.Peer, cardBlock *share.CardBlock) {
 	CurrentSession(peer).Send(&cardproto.CardBlockPushRequest{
-		CardBlock: BlockToMessage(cardBlock),
+		CardBlock: share.CardBlockToMsg(cardBlock),
 	})
 }
 

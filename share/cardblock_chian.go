@@ -17,7 +17,7 @@ func (chain *CardBlockChain) HeadBlock() *CardBlock {
 
 // Height 区块链高度
 func (chain *CardBlockChain) Height() int64 {
-	return int64(len(chain.Cardblocks))
+	return int64(len(chain.Cardblocks) - 1)
 }
 
 // BlockAtHeight 获取特定高度的区块
