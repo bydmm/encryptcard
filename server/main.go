@@ -126,7 +126,7 @@ func CardBlockPushRequest(peer cellnet.Peer) {
 		}
 
 		if block.VerifyCardID() {
-			log.Infof("新卡产生 CardID: %s\n", block.CardID())
+			log.Infof("新卡产生 CardID: %s 高度: %d\n ", block.CardID(), block.Height)
 
 			//把新块加到链上
 			AddBlockToChain(block)

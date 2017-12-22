@@ -120,9 +120,7 @@ func whenFindCard(block *share.CardBlock) {
 		}
 		c, ok := share.CardPrototypes[card.ID]
 		if ok {
-			fmt.Printf("%s: %s\n", c.Name, c.Lines)
-			fmt.Printf("攻击: %d\n", card.Attack)
-			fmt.Printf("防御: %d\n", card.Defense)
+			fmt.Printf("%s: %s\n 攻击: %d 防御: %d", c.Name, c.Lines)
 			if enableSound {
 				say(c.Lines)
 			}
