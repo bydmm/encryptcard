@@ -41,9 +41,9 @@ func (chain *CardBlockChain) AdaptiveHard() int32 {
 	secondHead, _ := chain.BlockAtHeight(head.Height - 1)
 	blockTime := time.Duration(head.Timestamp - secondHead.Timestamp)
 	switch {
-	case blockTime < (1 * time.Minute):
+	case blockTime < (20 * time.Second):
 		return head.Hard + 1
-	case blockTime > (2 * time.Minute):
+	case blockTime > (21 * time.Second):
 		return head.Hard + 1
 	default:
 		return head.Hard

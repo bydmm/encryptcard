@@ -41,8 +41,14 @@ var maxConcurrency int
 // 启动声音
 var enableSound bool
 
-//	挖矿开关
+// 启动动画
+var enableAnimation bool
+
+// 挖矿开关
 var doneSync = make(chan bool, 1)
+
+// 动画正在播放的flag
+var playingSync = make(chan bool, 1)
 
 // 初始化区块链
 func initChain() {
@@ -50,7 +56,7 @@ func initChain() {
 	if _, err := os.Stat(ChainPath); os.IsNotExist(err) {
 		log.Infof("区块文件不存在....\n")
 	} else {
-		// 如果文件存在，试图读取区块
+		// 如果文件存在,试图读取区块
 		cardblockChain = share.LoadCardBlockChainFromDisk(ChainPath)
 		log.Infof("区块链读取完成....\n")
 		log.Infof("区块高度: %d\n", len(cardblockChain.Cardblocks))
@@ -79,31 +85,50 @@ func initGame() {
 	// 初始化密钥
 	userKeyPair = share.GetKeyPair()
 	userPubKey = share.PubKey(userKeyPair)
+
+	// 初始化动画同步
+	playingSync <- true
+}
+
+// 启用动画效果
+func openAnimation() bool {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("\n抽卡动画仅在osx, linux, Win10 Powershell中可用, 并且可能降低挖卡效率\n")
+	fmt.Print("开启抽卡动画？ 输入[Y]确认: ")
+	text, _ := reader.ReadString('\n')
+	text = strings.TrimRight(text, "\r\n")
+	return strings.ToUpper(text) == "Y"
 }
 
 // 打开声音
 func openSound() bool {
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("[此功能仅对OSX有效]开启声音？ 输入[Y]确认: ")
+	fmt.Print("开启声音[此功能仅对OSX有效] 输入[Y]确认: ")
 	text, _ := reader.ReadString('\n')
 	text = strings.TrimRight(text, "\r\n")
 	return strings.ToUpper(text) == "Y"
 }
 
 // 当挖到卡后
-func whenFindCard(block *share.CardBlock, sound bool) {
+func whenFindCard(block *share.CardBlock) {
+	<-playingSync
 	card, err := block.Card()
 	if err == nil {
-		// animation()
-		// clearScreen()
+		if enableAnimation {
+			animation()
+			clearScreen()
+		}
 		c, ok := share.CardPrototypes[card.ID]
 		if ok {
 			fmt.Printf("%s: %s\n", c.Name, c.Lines)
-			if sound {
+			fmt.Printf("攻击: %d\n", card.Attack)
+			fmt.Printf("防御: %d\n", card.Defense)
+			if enableSound {
 				say(c.Lines)
 			}
 		}
 	}
+	playingSync <- true
 }
 
 // SaveChainToDisk 保存区块到磁盘
@@ -111,7 +136,7 @@ func SaveChainToDisk() {
 	share.Store(cardblockChain, ChainPath)
 }
 
-// ReSyncChain 区块被破坏，重新同步
+// ReSyncChain 区块被破坏,重新同步
 func ReSyncChain(peer cellnet.Peer) {
 	cardblockChain = &share.CardBlockChain{}
 	CheckSync(peer)
@@ -140,9 +165,9 @@ func SyncResponse(peer cellnet.Peer) {
 			if headBlock.Height > height {
 				RequestCardBlocksFetch(peer, height+1)
 			} else {
-				// 开挖, 解除阻塞，开启挖矿
+				// 开挖, 解除阻塞,开启挖矿
 				doneSync <- true
-				log.Infof("与主链同步完成，当前高度：%d，难度：%d\n", height, headBlock.Hard)
+				log.Infof("与主链同步完成,当前高度: %d, 难度: %d, 目标难度: %d\n", height, headBlock.Hard, cardblockChain.AdaptiveHard())
 			}
 		} else {
 			log.Errorln("与主链失去同步, 正在清除本地缓存重新同步...\n")
@@ -211,10 +236,10 @@ func CardBlockMsg(peer cellnet.Peer) {
 		cardblockChain.Cardblocks = append(cardblockChain.Cardblocks, block)
 
 		if block.PubKey == userPubKey {
-			go whenFindCard(block, enableSound)
+			go whenFindCard(block)
 		}
 
-		log.Infof("当前区块高度: %d 当前区块难度: %d\n", block.Height, block.Hard)
+		log.Infof("同步新区块,当前区块高度: %d 当前区块难度: %d 目标难度:%d\n", block.Height, block.Hard, cardblockChain.AdaptiveHard())
 	})
 }
 
@@ -235,7 +260,7 @@ func SyncBlocks(queue cellnet.EventQueue, peer cellnet.Peer, ev *cellnet.Event) 
 	CardBlockMsg(peer)
 }
 
-// Miner 辛苦的矿工，挖挖挖
+// Miner 辛苦的矿工,挖挖挖
 func Miner(queue cellnet.EventQueue, peer cellnet.Peer, ev *cellnet.Event) {
 	<-doneSync
 	//等待挖矿完成
@@ -262,10 +287,12 @@ func Miner(queue cellnet.EventQueue, peer cellnet.Peer, ev *cellnet.Event) {
 	go func() {
 		second := 0
 		for {
+			<-playingSync
 			time.Sleep(1 * time.Second)
 			second++
 			speed := blockCount / second
 			fmt.Printf("%d Blocks in %d second (%d/s)\r", blockCount, second, speed)
+			playingSync <- true
 		}
 	}()
 }
@@ -298,13 +325,15 @@ func Start() {
 }
 
 func main() {
-	concurrency := flag.Int("c", 1, "并发数，默认为1, 不建议超过CPU数")
+	concurrency := flag.Int("c", 1, "并发数,默认为1, 不建议超过CPU数")
 	flag.Parse()
 
 	// 并发现只
 	maxConcurrency = *concurrency
 	// 声音限制
 	enableSound = openSound()
+	// 声音限制
+	enableAnimation = openAnimation()
 
 	Start()
 }
