@@ -36,13 +36,13 @@ var userKeyPair *rsa.PrivateKey
 var userPubKey string
 
 // 并发数
-var maxConcurrency int
+var maxConcurrency = 1
 
 // 启动声音
-var enableSound bool
+var enableSound = false
 
 // 启动动画
-var enableAnimation bool
+var enableAnimation = false
 
 // 挖矿开关
 var doneSync = make(chan bool, 1)
@@ -120,7 +120,7 @@ func whenFindCard(block *share.CardBlock) {
 		}
 		c, ok := share.CardPrototypes[card.ID]
 		if ok {
-			fmt.Printf("%s: %s\n 攻击: %d 防御: %d", c.Name, c.Lines)
+			fmt.Printf("%s: %s 攻击: %d 防御: %d\n", c.Name, c.Lines, card.Attack, card.Defense)
 			if enableSound {
 				say(c.Lines)
 			}
@@ -306,10 +306,6 @@ func AfterConnect(queue cellnet.EventQueue, peer cellnet.Peer, ev *cellnet.Event
 
 // Start 开始主程序
 func Start() {
-	startScreen()
-	// 初始化
-	initGame()
-
 	// 开始链接服务器
 	log.Infof("与服务器建立链接.....\n")
 	StartClient(func(queue cellnet.EventQueue, peer cellnet.Peer, ev *cellnet.Event, success bool) {
@@ -322,16 +318,50 @@ func Start() {
 	})
 }
 
+// MyCards 显示我的卡组
+func MyCards() {
+	if cardblockChain.Cardblocks == nil {
+		panic("本地无可用的区块文件，无法查询")
+	}
+
+	blocks := []*share.CardBlock{}
+	for index := 0; index < len(cardblockChain.Cardblocks); index++ {
+		block := cardblockChain.Cardblocks[index]
+		if block.PubKey == userPubKey {
+			whenFindCard(block)
+			blocks = append(blocks, block)
+		}
+	}
+	if len(blocks) > 0 {
+		fmt.Printf("恭喜你，总计%d张卡\n", len(blocks))
+	} else {
+		fmt.Printf("别气馁，努力挖挖总是有的\n")
+	}
+
+}
+
 func main() {
+	my := flag.Bool("my", false, "查看我拥有的卡")
 	concurrency := flag.Int("c", 1, "并发数,默认为1, 不建议超过CPU数")
+
 	flag.Parse()
 
-	// 并发现只
+	// 并发限制
 	maxConcurrency = *concurrency
 	// 声音限制
 	enableSound = openSound()
 	// 声音限制
 	enableAnimation = openAnimation()
 
-	Start()
+	// 启动画面
+	startScreen()
+
+	// 初始化
+	initGame()
+
+	if *my {
+		MyCards()
+	} else {
+		Start()
+	}
 }
