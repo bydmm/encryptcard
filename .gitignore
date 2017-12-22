@@ -4,3 +4,4 @@ encryptcard*
 .vscode
 saves
 cards.chain
+*.sh
