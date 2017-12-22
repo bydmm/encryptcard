@@ -106,6 +106,17 @@ func whenFindCard(block *share.CardBlock, sound bool) {
 	}
 }
 
+// SaveChainToDisk 保存区块到磁盘
+func SaveChainToDisk() {
+	share.Store(cardblockChain, ChainPath)
+}
+
+// ReSyncChain 区块被破坏，重新同步
+func ReSyncChain(peer cellnet.Peer) {
+	cardblockChain = &share.CardBlockChain{}
+	CheckSync(peer)
+}
+
 // CheckSync 同步检查
 func CheckSync(peer cellnet.Peer) {
 	if cardblockChain.Cardblocks == nil {
@@ -125,15 +136,17 @@ func SyncResponse(peer cellnet.Peer) {
 	CardBlockSyncResponse(peer, func(msg *cardproto.CardBlockSyncResponse) {
 		height := cardblockChain.Height()
 		if msg.Valid {
-			if msg.Height > height {
+			headBlock := msg.CardBlock
+			if headBlock.Height > height {
 				RequestCardBlocksFetch(peer, height+1)
 			} else {
 				// 开挖, 解除阻塞，开启挖矿
 				doneSync <- true
-				log.Infof("与主链同步完成,当前高度%d\n", height)
+				log.Infof("与主链同步完成，当前高度：%d，难度：%d\n", height, headBlock.Hard)
 			}
 		} else {
-			log.Fatalf("与主链失去同步, 建议删除本地区块再试...\n")
+			log.Errorln("与主链失去同步, 正在清除本地缓存重新同步...\n")
+			ReSyncChain(peer)
 		}
 	})
 }
@@ -169,6 +182,8 @@ func FetchBlocks(peer cellnet.Peer) {
 				log.Infof("同步未完成..当前高度%d\n", height)
 				RequestCardBlocksFetch(peer, height+1)
 			}
+
+			SaveChainToDisk()
 		} else {
 			log.Fatalf("与主链失去同步, 建议删除本地区块再试...\n")
 		}
@@ -199,7 +214,7 @@ func CardBlockMsg(peer cellnet.Peer) {
 			go whenFindCard(block, enableSound)
 		}
 
-		log.Infof("当前区块高度: %d\n", block.Height)
+		log.Infof("当前区块高度: %d 当前区块难度: %d\n", block.Height, block.Hard)
 	})
 }
 
@@ -231,7 +246,7 @@ func Miner(queue cellnet.EventQueue, peer cellnet.Peer, ev *cellnet.Event) {
 			for {
 				// 使用算力工作证明无限抽卡
 				headBlock := cardblockChain.HeadBlock()
-				block := share.CardBlock{PubKey: userPubKey, Hard: 3, PrevCardID: headBlock.CardID(), Height: (headBlock.Height + 1)}
+				block := share.CardBlock{PubKey: userPubKey, Hard: cardblockChain.AdaptiveHard(), PrevCardID: headBlock.CardID(), Height: (headBlock.Height + 1)}
 				CardID := block.Build()
 				if CardID != "" {
 					if block.VerifyCardID() {
@@ -277,7 +292,7 @@ func Start() {
 			log.Infof("成功与服务器建立链接...\n")
 			AfterConnect(queue, peer, ev)
 		} else {
-			log.Errorf("与服务器断开...\n")
+			log.Infof("与服务器断开...\n")
 		}
 	})
 }

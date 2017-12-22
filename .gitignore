@@ -3,3 +3,4 @@ encryptcard*
 *.pem
 .vscode
 saves
+cards.chain

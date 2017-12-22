@@ -2,6 +2,7 @@ package share
 
 import (
 	"errors"
+	"time"
 )
 
 // CardBlockChain 区块链
@@ -27,4 +28,25 @@ func (chain *CardBlockChain) BlockAtHeight(height int64) (*CardBlock, error) {
 	}
 	block := chain.Cardblocks[height]
 	return block, nil
+}
+
+// AdaptiveHard 根据之前区块被挖掘的速度去调整新块产生的速度
+// 一分钟出块，如果低于一分钟就加难度，高于两分钟就减难度
+// 无上限，无减半
+func (chain *CardBlockChain) AdaptiveHard() int32 {
+	if chain.Height() < 2 {
+		return 0
+	}
+	head := chain.HeadBlock()
+	secondHead, _ := chain.BlockAtHeight(head.Height - 1)
+	blockTime := time.Duration(head.Timestamp - secondHead.Timestamp)
+	switch {
+	case blockTime < (1 * time.Minute):
+		return head.Hard + 1
+	case blockTime > (2 * time.Minute):
+		return head.Hard + 1
+	default:
+		return head.Hard
+	}
+
 }

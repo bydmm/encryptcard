@@ -20,18 +20,23 @@ func Store(data interface{}, filename string) {
 	}
 }
 
-// Load 读bin
+// LoadFromRaw 从二进制流读区块
+func LoadFromRaw(data interface{}, raw []byte) {
+	buffer := bytes.NewBuffer(raw)
+	dec := gob.NewDecoder(buffer)
+	err := dec.Decode(data)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// Load 从文件读区块
 func Load(data interface{}, filename string) {
 	raw, err := ioutil.ReadFile(filename)
 	if err != nil {
 		panic(err)
 	}
-	buffer := bytes.NewBuffer(raw)
-	dec := gob.NewDecoder(buffer)
-	err = dec.Decode(data)
-	if err != nil {
-		panic(err)
-	}
+	LoadFromRaw(data, raw)
 }
 
 // LoadCardBlockChainFromDisk 从文件读取历史区块

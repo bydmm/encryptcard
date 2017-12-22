@@ -3,6 +3,7 @@ package main
 import (
 	"encryptcard/protoc/cardproto"
 	"encryptcard/share"
+	"os"
 	"sync"
 
 	"github.com/davyxu/cellnet"
@@ -17,7 +18,7 @@ const CreationBLOCKID = "0ee56b47756d5d7c04aa0270b601a04cbf25a81a06e2775432e32b8
 const ChainPath = "./blocks/cards.chain"
 
 // OnceSyncHeight 同步区块高度一次读取多少个
-const OnceSyncHeight = 100
+const OnceSyncHeight = 200
 
 // 初始化logging
 var log = golog.New("main")
@@ -47,6 +48,7 @@ func CardBlockSyncRequest(peer cellnet.Peer) {
 		valid := false
 		// 先判断高度是否吻合
 		if msg.Height <= cardblockChain.Height() {
+
 			cardBlock := cardblockChain.Cardblocks[msg.Height]
 			if cardBlock != nil {
 				// 判断区块ID是否一致
@@ -57,10 +59,8 @@ func CardBlockSyncRequest(peer cellnet.Peer) {
 		}
 
 		res := cardproto.CardBlockSyncResponse{
-			Valid:      valid,
-			Height:     cardblockChain.Height(),
-			CardID:     cardblockChain.HeadBlock().CardID(),
-			PrevCardID: cardblockChain.HeadBlock().PrevCardID,
+			Valid:     valid,
+			CardBlock: share.CardBlockToMsg(cardblockChain.HeadBlock()),
 		}
 
 		ev.Ses.Send(&res)
@@ -116,11 +116,17 @@ func CardBlockPushRequest(peer cellnet.Peer) {
 		headBlock := cardblockChain.HeadBlock()
 
 		if block.PrevCardID != headBlock.CardID() && block.Height != (headBlock.Height+1) {
-			log.Debugln("不是一条链，拜拜")
+			log.Infof("不是一条链，拜拜")
+			return
+		}
+
+		if cardblockChain.AdaptiveHard() != block.Hard {
+			log.Infof("难度不匹配")
 			return
 		}
 
 		if block.VerifyCardID() {
+			log.Infof("新卡产生 CardID: %s\n", block.CardID())
 
 			//把新块加到链上
 			AddBlockToChain(block)
@@ -159,16 +165,32 @@ func startServer() {
 
 // 初始化区块链
 func initChain() {
-	log.Infof("从磁盘读取区块链....\n")
-	cardblockChain = share.LoadCardBlockChainFromDisk(ChainPath)
-	log.Infof("区块链读取完成....\n")
-	log.Infof("区块高度: %d\n", len(cardblockChain.Cardblocks))
+	if _, err := os.Stat(ChainPath); os.IsNotExist(err) {
+		log.Infof("区块文件不存在, 创建初始链...\n")
+		raw, _ := Asset("cards.chain")
+		share.LoadFromRaw(&cardblockChain, raw)
+		SaveChainToDisk()
+	} else {
+		// 如果文件存在，试图读取区块
+		log.Infof("从磁盘读取区块链....\n")
+		cardblockChain = share.LoadCardBlockChainFromDisk(ChainPath)
+		log.Infof("区块链读取完成....\n")
+		log.Infof("区块高度: %d\n", len(cardblockChain.Cardblocks))
+	}
 }
 
 // 初始化
 func initServer() {
+	// 创建文件夹
+	os.Mkdir("./blocks", 0755)
+
+	// 屏蔽socket层的调试日志
+	golog.SetLevelByString("cellnet", "info")
+	golog.SetLevelByString("main", "info")
+
 	// 初始化区块链
 	initChain()
+
 }
 
 func main() {
